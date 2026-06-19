@@ -6,149 +6,244 @@
 
 <div class="card p-3">
 
-    <form method="POST">
+```
+<form method="POST">
 
-        <label>Date</label>
-        <input
-            type="date"
-            name="entry_date"
-            class="form-control"
-            value="{{ entry[1] }}"
-            required>
+    <label>Date</label>
+    <input
+        type="date"
+        name="entry_date"
+        class="form-control"
+        value="{{ rows[0][1] }}"
+        required>
 
-        <br>
+    <br>
 
-        <label>Shop Name</label>
-        <select name="shop_id" class="form-control">
+    <label>Shop Name</label>
+    <select name="shop_id" class="form-control">
 
-            {% for shop in shops %}
-            <option value="{{ shop[0] }}"
-                {% if shop[0] == entry[2] %}selected{% endif %}>
-                {{ shop[1] }}
-            </option>
-            {% endfor %}
+        {% for shop in shops %}
+        <option value="{{ shop[0] }}"
+            {% if shop[0] == rows[0][2] %}
+            selected
+            {% endif %}>
+            {{ shop[1] }}
+        </option>
+        {% endfor %}
 
-        </select>
+    </select>
 
-        <br>
+    <br>
 
-        <label>Product</label>
-        <select id="product"
-                name="product_id"
-                class="form-control">
+    <div id="productRows">
 
-            {% for product in products %}
-            <option value="{{ product[0] }}"
-                    data-rate="{{ product[2] }}"
-                    {% if product[0] == entry[3] %}selected{% endif %}>
-                {{ product[1] }}
-            </option>
-            {% endfor %}
+        {% for row in rows %}
 
-        </select>
+        <div class="row mb-3 product-row">
 
-        <br>
+            <div class="col-md-4">
 
-        <label>Liter</label>
-        <input
-            type="number"
-            id="liter"
-            name="liter"
-            class="form-control"
-            value="{{ entry[4] }}">
+                <label>Product</label>
 
-        <br>
+                <select name="product_id[]"
+                        class="form-control product">
 
-        <label>Rate</label>
-        <input
-            type="number"
-            id="rate"
-            name="rate"
-            class="form-control"
-            value="{{ entry[5] }}">
+                    {% for product in products %}
+                    <option value="{{ product[0] }}"
+                            data-rate="{{ product[2] }}"
+                            {% if product[0] == row[3] %}
+                            selected
+                            {% endif %}>
+                        {{ product[1] }}
+                    </option>
+                    {% endfor %}
 
-        <br>
+                </select>
 
-        <label>Total Amount</label>
-        <input
-            type="number"
-            id="total"
-            name="total"
-            class="form-control"
-            value="{{ entry[6] }}"
-            readonly>
+            </div>
 
-        <br>
+            <div class="col-md-2">
 
-        <label>Paid Amount</label>
-        <input
-            type="number"
-            id="paid"
-            name="paid"
-            class="form-control"
-            value="{{ entry[7] }}">
+                <label>Liter</label>
 
-        <br>
+                <input type="number"
+                       step="0.01"
+                       name="liter[]"
+                       class="form-control liter"
+                       value="{{ row[4] }}"
+                       >
 
-        <label>Balance Amount</label>
-        <input
-            type="number"
-            id="balance"
-            name="balance"
-            class="form-control"
-            value="{{ entry[8] }}"
-            readonly>
+            </div>
 
-        <br>
+            <div class="col-md-2">
 
-        <button type="submit"
-                class="btn btn-primary">
-            Update Entry
-        </button>
+                <label>Rate</label>
 
-        <a href="/entry"
-           class="btn btn-secondary">
-            Cancel
-        </a>
+                <input type="number"
+                       name="rate[]"
+                       class="form-control rate"
+                       value="{{ row[5] }}">
 
-    </form>
+            </div>
+
+            <div class="col-md-2">
+
+                <label>Total</label>
+
+                <input type="number"
+                       name="total[]"
+                       class="form-control total"
+                       value="{{ row[6] }}"
+                       readonly>
+
+            </div>
+
+            <div class="col-md-2">
+
+                <label>&nbsp;</label>
+
+                <button type="button"
+                        class="btn btn-danger form-control remove-row">
+                    Remove
+                </button>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+    <hr>
+
+    <div class="row">
+
+        <div class="col-md-4">
+
+            <label>Paid Amount</label>
+
+            <input type="number"
+                   id="paid"
+                   name="paid"
+                   class="form-control"
+                   value="{{ rows[0][7] }}">
+
+        </div>
+
+        <div class="col-md-4">
+
+            <label>Balance Amount</label>
+
+            <input type="number"
+                   id="balance"
+                   name="balance"
+                   class="form-control"
+                   value="{{ rows[0][8] }}"
+                   readonly>
+
+        </div>
+
+    </div>
+
+    <br>
+
+    <button type="submit"
+            class="btn btn-primary">
+        Update Entry
+    </button>
+
+    <a href="/entry"
+       class="btn btn-secondary">
+        Cancel
+    </a>
+
+</form>
+```
 
 </div>
 
 <script>
 
-const product = document.getElementById("product");
-const liter = document.getElementById("liter");
-const rate = document.getElementById("rate");
-const total = document.getElementById("total");
-const paid = document.getElementById("paid");
-const balance = document.getElementById("balance");
+function calculateRow(row) {
 
-function calculate() {
+    let liter =
+        parseFloat(row.querySelector(".liter").value) || 0;
 
-    let ltr = parseFloat(liter.value) || 0;
-    let rt = parseFloat(rate.value) || 0;
-    let pd = parseFloat(paid.value) || 0;
+    let rate =
+        parseFloat(row.querySelector(".rate").value) || 0;
 
-    let totalAmount = ltr * rt;
+    let total = liter * rate;
 
-    total.value = totalAmount;
-    balance.value = totalAmount - pd;
+    row.querySelector(".total").value = total;
+
+    calculateBalance();
 }
 
-product.addEventListener("change", function () {
+function calculateBalance() {
 
-    let selected =
-        product.options[product.selectedIndex];
+    let grandTotal = 0;
 
-    rate.value =
-        selected.getAttribute("data-rate") || 0;
+    document.querySelectorAll(".total")
+        .forEach(function(item){
 
-    calculate();
-});
+            grandTotal +=
+                parseFloat(item.value) || 0;
 
-liter.addEventListener("input", calculate);
-paid.addEventListener("input", calculate);
+        });
+
+    let paid =
+        parseFloat(
+            document.getElementById("paid").value
+        ) || 0;
+
+    document.getElementById("balance").value =
+        grandTotal - paid;
+}
+
+document.querySelectorAll(".product-row")
+    .forEach(function(row){
+
+        let product = row.querySelector(".product");
+        let rate = row.querySelector(".rate");
+        let liter = row.querySelector(".liter");
+
+        product.addEventListener("change", function(){
+
+            let selected =
+                product.options[product.selectedIndex];
+
+            rate.value =
+                selected.getAttribute("data-rate") || 0;
+
+            calculateRow(row);
+
+        });
+
+        rate.addEventListener("input", function(){
+
+            calculateRow(row);
+
+        });
+
+        liter.addEventListener("input", function(){
+
+            calculateRow(row);
+
+        });
+
+    });
+document.getElementById("paid")
+    .addEventListener(
+        "input",
+        calculateBalance
+    );
+
+window.onload = function () {
+
+    calculateBalance();
+
+};
 
 </script>
 
