@@ -31,32 +31,54 @@
 
 <table class="table table-bordered">
 
+    <h4>Saved Products</h4>
+
+<table class="table table-bordered table-hover">
+
+```
+<thead>
     <tr>
-        <th>ID</th>
+        <th>S.No</th>
         <th>Product Name</th>
         <th>Rate</th>
         <th>Action</th>
     </tr>
-    </tr>
+</thead>
+
+<tbody>
 
     {% for product in products %}
     <tr>
-        <td>{{ product[0] }}</td>
-        <td>{{ product[1] }}</td>
-        <td>{{ product[2] }}</td>
-        <td>
-    <a href="/edit-product/{{ product[0] }}"
-       class="btn btn-warning btn-sm">
-       Edit
-    </a>
 
-    <a href="/delete-product/{{ product[0] }}"
-       class="btn btn-danger btn-sm">
-       Delete
-    </a>
-</td>
+        <td>{{ loop.index }}</td>
+
+        <td>{{ product[1] }}</td>
+
+        <td>₹ {{ product[2] }}</td>
+
+        <td>
+
+            <a href="/edit-product/{{ product[0] }}"
+               class="btn btn-warning btn-sm">
+                Edit
+            </a>
+
+            <a href="/delete-product/{{ product[0] }}"
+               class="btn btn-danger btn-sm"
+               onclick="return confirm('Delete this product?')">
+                Delete
+            </a>
+
+        </td>
+
     </tr>
     {% endfor %}
+
+</tbody>
+```
+
+</table>
+
 
 </table>
 ```
