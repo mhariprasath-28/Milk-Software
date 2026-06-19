@@ -147,42 +147,68 @@
 
     <table class="table table-bordered">
 
-        <tr>
-            <th>ID</th>
-            <th>Date</th>
-            <th>Shop</th>
-            <th>Product</th>
-            <th>Liter</th>
-            <th>Total</th>
-            <th>Paid</th>
-            <th>Balance</th>
-            <th>Action</th>
-        </tr>
+        <h3>Saved Entries</h3>
 
-        {% for row in entries %}
-        <tr>
-    <td>{{ row[0] }}</td>
-    <td>{{ row[1] }}</td>
-    <td>{{ row[2] }}</td>
-    <td>{{ row[3] }}</td>
-    <td>{{ row[4] }}</td>
-    <td>{{ row[6] }}</td>
-    <td>{{ row[7] }}</td>
-    <td>{{ row[8] }}</td>
+<table class="table table-bordered table-hover">
 
-    <td>
-          <a href="/edit-entry/{{ row[0] }}"
-       class="btn btn-warning btn-sm">
-       Edit
-    </a>
-        <a href="/delete-entry/{{ row[0] }}"
-           class="btn btn-danger btn-sm"
-           onclick="return confirm('Delete this entry?')">
-            Delete
-        </a>
-    </td>
-</tr>
-        {% endfor %}
+```
+<thead>
+    <tr>
+        <th>S.No</th>
+        <th>Date</th>
+        <th>Shop</th>
+        <th>Product</th>
+        <th>Liter</th>
+        <th>Total</th>
+        <th>Paid</th>
+        <th>Balance</th>
+        <th>Action</th>
+    </tr>
+</thead>
+
+<tbody>
+
+    {% for row in entries %}
+    <tr>
+
+        <td>{{ loop.index }}</td>
+
+        <td>{{ row[1] }}</td>
+        <td>{{ row[2] }}</td>
+        <td>{{ row[3] }}</td>
+        <td>{{ row[4] }}</td>
+
+        <td>₹ {{ row[6] }}</td>
+        <td>₹ {{ row[7] }}</td>
+
+        <td>
+            <span class="text-danger fw-bold">
+                ₹ {{ row[8] }}
+            </span>
+        </td>
+
+        <td>
+
+            <a href="/edit-entry/{{ row[0] }}"
+               class="btn btn-warning btn-sm">
+                Edit
+            </a>
+
+            <a href="/delete-entry/{{ row[0] }}"
+               class="btn btn-danger btn-sm"
+               onclick="return confirm('Delete this entry?')">
+                Delete
+            </a>
+
+        </td>
+
+    </tr>
+    {% endfor %}
+
+</tbody>
+```
+
+</table>
 
     </table>
 
