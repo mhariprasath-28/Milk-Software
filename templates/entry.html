@@ -2,62 +2,31 @@
 
 {% block content %}
 
-
 <div class="container-fluid">
 
 ```
 <h2>Milk Entry</h2>
 
-<div class="row mb-4">
-
-    <div class="col-md-4">
-        <div class="card bg-primary text-white">
-            <div class="card-body">
-                <h5>Total Collection</h5>
-                <h3>₹ {{ total_collection }}</h3>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-4">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <h5>Total Paid</h5>
-                <h3>₹ {{ total_paid }}</h3>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-4">
-        <div class="card bg-danger text-white">
-            <div class="card-body">
-                <h5>Total Balance</h5>
-                <h3>₹ {{ total_balance }}</h3>
-            </div>
-        </div>
-    </div>
-
-</div>
-
 <div class="card p-3">
 
     <form method="POST">
 
-        <div class="row">
+        <div class="row mb-3">
 
             <div class="col-md-4">
                 <label>Date</label>
-<input
-    type="date"
-    name="entry_date"
-    class="form-control"
-    value="{{ today }}"
-    required>
+                <input type="date"
+                       name="entry_date"
+                       class="form-control"
+                       value="{{ today }}"
+                       required>
             </div>
 
             <div class="col-md-4">
                 <label>Shop Name</label>
-                <select name="shop_id" class="form-control">
+                <select name="shop_id"
+                        class="form-control"
+                        required>
 
                     <option value="">Select Shop</option>
 
@@ -70,147 +39,181 @@
                 </select>
             </div>
 
+        </div>
+
+        <hr>
+
+        <div id="productRows">
+
+            <div class="row mb-3 product-row">
+
+                <div class="col-md-4">
+
+                    <label>Product</label>
+
+                    <select name="product_id[]"
+                            class="form-control product">
+
+                        <option value="">Select Product</option>
+
+                        {% for product in products %}
+                        <option value="{{ product[0] }}"
+                                data-rate="{{ product[2] }}">
+                            {{ product[1] }}
+                        </option>
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+                <div class="col-md-2">
+
+                    <label>Liter</label>
+
+                    <input type="number"
+                           step="0.01"
+                           name="liter[]"
+                           class="form-control liter">
+
+                </div>
+
+                <div class="col-md-2">
+
+                    <label>Rate</label>
+
+                    <input type="number"
+                           name="rate[]"
+                           class="form-control rate"
+                           >
+
+                </div>
+
+                <div class="col-md-2">
+
+                    <label>Total</label>
+
+                    <input type="number"
+                           name="total[]"
+                           class="form-control total"
+                           readonly>
+
+                </div>
+
+                <div class="col-md-2">
+
+                    <label>&nbsp;</label>
+
+                    <button type="button"
+                            class="btn btn-danger form-control remove-row">
+                        Remove
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <button type="button"
+                class="btn btn-primary mb-3"
+                onclick="addProductRow()">
+            + Add Product
+        </button>
+
+        <hr>
+
+        <div class="row">
+
             <div class="col-md-4">
-                <label>Product</label>
-                <select id="product"
-                        name="product_id"
-                        class="form-control">
+                <label>Paid Amount</label>
+                <input type="number"
+                       id="paid"
+                       name="paid"
+                       class="form-control">
+            </div>
 
-                    <option value="">Select Product</option>
+            <div class="col-md-4">
+                <label>Grand Total</label>
+                <input type="number"
+                       id="grand_total"
+                       class="form-control"
+                       readonly>
+            </div>
 
-                    {% for product in products %}
-                    <option value="{{ product[0] }}"
-                            data-rate="{{ product[2] }}">
-                        {{ product[1] }}
-                    </option>
-                    {% endfor %}
-
-                </select>
+            <div class="col-md-4">
+                <label>Balance</label>
+                <input type="number"
+                       id="balance"
+                       name="balance"
+                       class="form-control"
+                       readonly>
             </div>
 
         </div>
 
         <br>
 
-        <label>Liter</label>
-        <input type="number"
-               id="liter"
-               name="liter"
-               class="form-control">
-
-        <br>
-
-        <label>Rate</label>
-        <input type="number"
-               id="rate"
-               name="rate"
-               class="form-control"
-               readonly>
-
-        <br>
-
-        <label>Total Amount</label>
-        <input type="number"
-               id="total"
-               name="total"
-               class="form-control"
-               readonly>
-
-        <br>
-
-        <label>Paid Amount</label>
-        <input type="number"
-               id="paid"
-               name="paid"
-               class="form-control">
-
-        <br>
-
-        <label>Balance Amount</label>
-        <input type="number"
-               id="balance"
-               name="balance"
-               class="form-control"
-               readonly>
-
-        <br>
-
-        <button type="submit" class="btn btn-success">
+        <button type="submit"
+                class="btn btn-success">
             Save Entry
         </button>
 
     </form>
-
     <hr>
 
-    <h3>Saved Entries</h3>
-
-    <table class="table table-bordered">
-
-        <h3>Saved Entries</h3>
+<h3>Saved Entries</h3>
 
 <table class="table table-bordered table-hover">
 
-```
-<thead>
-    <tr>
-        <th>S.No</th>
-        <th>Date</th>
-        <th>Shop</th>
-        <th>Product</th>
-        <th>Liter</th>
-        <th>Total</th>
-        <th>Paid</th>
-        <th>Balance</th>
-        <th>Action</th>
-    </tr>
+    <thead>
+<tr>
+    <th>S.No</th>
+    <th>Date</th>
+    <th>Shop</th>
+    <th>Products</th>
+    <th>Total</th>
+    <th>Paid</th>
+    <th>Balance</th>
+    <th>Action</th>
+</tr>
 </thead>
 
-<tbody>
+    <tbody>
 
-    {% for row in entries %}
-    <tr>
+{% for row in entries %}
+<tr>
 
-        <td>{{ loop.index }}</td>
+    <td>{{ loop.index }}</td>
 
-        <td>{{ row[1] }}</td>
-        <td>{{ row[2] }}</td>
-        <td>{{ row[3] }}</td>
-        <td>{{ row[4] }}</td>
+    <td>{{ row[1] }}</td>
+<td>{{ row[2] }}</td>
 
-        <td>₹ {{ row[6] }}</td>
-        <td>₹ {{ row[7] }}</td>
+<td>{{ row[4] | safe }}</td>
 
-        <td>
-            <span class="text-danger fw-bold">
-                ₹ {{ row[8] }}
-            </span>
-        </td>
+<td>₹ {{ row[5] }}</td>
+<td>₹ {{ row[6] }}</td>
+<td>₹ {{ row[7] }}</td>
 
-        <td>
+<td>
+    <a href="/edit-entry/{{ row[0] }}"
+       class="btn btn-warning btn-sm">
+        Edit
+    </a>
 
-            <a href="/edit-entry/{{ row[0] }}"
-               class="btn btn-warning btn-sm">
-                Edit
-            </a>
-
-             <a href="/delete-entry/{{ row[0] }}"
-   class="btn btn-danger btn-sm"
-   onclick="return confirm('Are you sure you want to delete this entry?')">
-   Delete
+    <a href="/delete-entry/{{ row[0] }}"
+       class="btn btn-danger btn-sm"
+   onclick="return confirm('Delete this entry?')">
+    Delete
 </a>
+</td>
 
-        </td>
-
-    </tr>
-    {% endfor %}
+</tr>
+{% endfor %}
 
 </tbody>
-```
 
 </table>
-
-    </table>
 
 </div>
 ```
@@ -219,36 +222,124 @@
 
 <script>
 
-const product = document.getElementById("product");
-const liter = document.getElementById("liter");
-const rate = document.getElementById("rate");
-const total = document.getElementById("total");
-const paid = document.getElementById("paid");
-const balance = document.getElementById("balance");
+function addProductRow() {
 
-product.addEventListener("change", function () {
+    let row =
+        document.querySelector(".product-row");
 
-    let selected = product.options[product.selectedIndex];
+    let clone =
+        row.cloneNode(true);
 
-    rate.value = selected.getAttribute("data-rate") || 0;
+    clone.querySelector(".product").selectedIndex = 0;
+    clone.querySelector(".liter").value = "";
+    clone.querySelector(".rate").value = "";
+    clone.querySelector(".total").value = "";
 
-    calculate();
-});
+    document
+        .getElementById("productRows")
+        .appendChild(clone);
 
-liter.addEventListener("input", calculate);
-paid.addEventListener("input", calculate);
-
-function calculate() {
-
-    let ltr = parseFloat(liter.value) || 0;
-    let rt = parseFloat(rate.value) || 0;
-    let pd = parseFloat(paid.value) || 0;
-
-    let totalAmount = ltr * rt;
-
-    total.value = totalAmount;
-    balance.value = totalAmount - pd;
+    attachEvents();
 }
+
+function attachEvents() {
+    document.querySelectorAll(".rate")
+    .forEach(rate => {
+
+        rate.oninput = function() {
+
+            let row =
+                this.closest(".product-row");
+
+            calculateRow(row);
+        };
+    });
+
+    document.querySelectorAll(".product")
+        .forEach(product => {
+
+            product.onchange = function() {
+
+                let row =
+                    this.closest(".product-row");
+
+                row.querySelector(".rate").value =
+                    this.options[this.selectedIndex]
+                    .dataset.rate || 0;
+
+                calculateRow(row);
+            };
+        });
+
+    document.querySelectorAll(".liter")
+        .forEach(liter => {
+
+            liter.oninput = function() {
+
+                let row =
+                    this.closest(".product-row");
+
+                calculateRow(row);
+            };
+        });
+
+    document.querySelectorAll(".remove-row")
+        .forEach(btn => {
+
+            btn.onclick = function() {
+
+                if(document.querySelectorAll(".product-row").length > 1){
+
+                    this.closest(".product-row").remove();
+
+                    calculateGrandTotal();
+                }
+            };
+        });
+}
+
+function calculateRow(row) {
+
+    let liter =
+        parseFloat(row.querySelector(".liter").value) || 0;
+
+    let rate =
+        parseFloat(row.querySelector(".rate").value) || 0;
+
+    row.querySelector(".total").value =
+        liter * rate;
+
+    calculateGrandTotal();
+}
+
+function calculateGrandTotal() {
+
+    let grandTotal = 0;
+
+    document.querySelectorAll(".total")
+        .forEach(t => {
+
+            grandTotal +=
+                parseFloat(t.value) || 0;
+        });
+
+    document.getElementById("grand_total").value =
+        grandTotal;
+
+    let paid =
+        parseFloat(
+            document.getElementById("paid").value
+        ) || 0;
+
+    document.getElementById("balance").value =
+        grandTotal - paid;
+}
+
+document.getElementById("paid")
+    .addEventListener("input",
+        calculateGrandTotal);
+
+attachEvents();
 
 </script>
 
