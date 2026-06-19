@@ -32,29 +32,29 @@
 <table class="table table-bordered">
 
     <tr>
-        <th>ID</th>
+        <th>S.No</th>
         <th>Shop Name</th>
         <th>Action</th>
     </tr>
 
     {% for shop in shops %}
-    <tr>
-        <td>{{ shop[0] }}</td>
-        <td>{{ shop[1] }}</td>
-        <td>
-    <a href="/edit-shop/{{ shop[0] }}"
-       class="btn btn-warning btn-sm">
-       Edit
-    </a>
+<tr>
+    <td>{{ loop.index }}</td>
+    <td>{{ shop[1] }}</td>
 
-    <a href="/delete-shop/{{ shop[0] }}"
-       class="btn btn-danger btn-sm">
-       Delete
-    </a>
-</td>
-    </tr>
-    {% endfor %}
+    <td>
+        <a href="/edit-shop/{{ shop[0] }}"
+           class="btn btn-warning btn-sm">
+           Edit
+        </a>
 
+        <a href="/delete-shop/{{ shop[0] }}"
+           class="btn btn-danger btn-sm">
+           Delete
+        </a>
+    </td>
+</tr>
+{% endfor %}
 </table>
 ```
 
