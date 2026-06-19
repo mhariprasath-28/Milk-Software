@@ -56,9 +56,19 @@ CREATE TABLE IF NOT EXISTS entries(
     balance_amount REAL
 )
 """)
-conn.commit()
-conn.close()
+conn = sqlite3.connect("milk.db")
+cursor = conn.cursor()
 
+try:
+    cursor.execute("""
+    ALTER TABLE entries
+    ADD COLUMN group_id TEXT
+    """)
+    conn.commit()
+except:
+    pass
+
+conn.close()
 
 
 
@@ -132,17 +142,25 @@ def entry():
     if request.method == "POST":
         entry_date = request.form["entry_date"]
         shop_id = request.form["shop_id"]
-        product_id = request.form["product_id"]
-        liter = request.form["liter"]
-        rate = request.form["rate"]
-        total = request.form["total"]
+        product_ids = request.form.getlist("product_id[]")
+        liters = request.form.getlist("liter[]")
+        rates = request.form.getlist("rate[]")
+        totals = request.form.getlist("total[]")
+        print("PRODUCTS =", product_ids)
+        print("LITERS =", liters)
+        print("RATES =", rates)
+        print("TOTALS =", totals)
         today = date.today().strftime("%Y-%m-%d")
+        import uuid
+        group_id = str(uuid.uuid4())
         paid = request.form["paid"]
         balance = request.form["balance"]
 
-        cursor.execute("""
-       INSERT INTO entries
+        for i in range(len(product_ids)):
+            cursor.execute("""
+        INSERT INTO entries
 (
+    group_id,
     entry_date,
     shop_id,
     product_id,
@@ -152,17 +170,18 @@ def entry():
     paid_amount,
     balance_amount
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+    (
+    group_id,
     entry_date,
     shop_id,
-    product_id,
-    liter,
-    rate,
-    total,
-    paid,
-    balance
+    product_ids[i],
+    liters[i],
+    rates[i],
+    totals[i],
+    paid if i == 0 else 0,
+    balance if i == 0 else 0
 ))
 
         conn.commit()
@@ -198,21 +217,26 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 
     # Entry Report
     cursor.execute("""
-    SELECT
-        e.id,
-        e.entry_date,
-        s.shop_name,
-        p.product_name,
-        e.liter,
-        e.rate,
+SELECT
+    e.group_id,
+    e.entry_date,
+    s.shop_name,
+    MIN(e.shop_id) as shop_id,
+    GROUP_CONCAT(
+        p.product_name || ' - ' ||
+        e.liter || 'L - ₹' ||
         e.total_amount,
-        e.paid_amount,
-        e.balance_amount
-    FROM entries e
-    JOIN shops s ON e.shop_id = s.id
-    JOIN products p ON e.product_id = p.id
-    ORDER BY e.id DESC
-    """)
+        '<br>'
+    ) as products,
+    SUM(e.total_amount) as total,
+    MAX(e.paid_amount) as paid,
+    MAX(e.balance_amount) as balance
+FROM entries e
+JOIN shops s ON e.shop_id = s.id
+JOIN products p ON e.product_id = p.id
+GROUP BY e.group_id
+ORDER BY e.entry_date DESC
+""")
 
     entries = cursor.fetchall()
     today = date.today().strftime("%Y-%m-%d")
@@ -229,16 +253,16 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     total_balance=total_balance,
     today=today
 )
-@app.route("/delete-entry/<int:id>")
-def delete_entry(id):
+@app.route("/delete-entry/<group_id>")
+def delete_entry(group_id):
 
     conn = sqlite3.connect("milk.db")
     cursor = conn.cursor()
 
-    cursor.execute(
-        "DELETE FROM entries WHERE id = ?",
-        (id,)
-    )
+    cursor.execute("""
+    DELETE FROM entries
+    WHERE group_id = ?
+    """, (group_id,))
 
     conn.commit()
     conn.close()
@@ -310,58 +334,71 @@ def home():
         from_date=from_date,
         to_date=to_date
     )
-@app.route("/edit-entry/<int:id>", methods=["GET", "POST"])
-def edit_entry(id):
+@app.route("/edit-entry/<group_id>", methods=["GET", "POST"])
+def edit_entry(group_id):
 
     conn = sqlite3.connect("milk.db")
     cursor = conn.cursor()
 
     if request.method == "POST":
 
+        entry_date = request.form["entry_date"]
         shop_id = request.form["shop_id"]
-        product_id = request.form["product_id"]
-        liter = request.form["liter"]
-        rate = request.form["rate"]
-        total = request.form["total"]
+
+        product_ids = request.form.getlist("product_id[]")
+        liters = request.form.getlist("liter[]")
+        rates = request.form.getlist("rate[]")
+        totals = request.form.getlist("total[]")
+
         paid = request.form["paid"]
         balance = request.form["balance"]
-        entry_date = request.form["entry_date"]
 
-        cursor.execute("""
-        UPDATE entries
-        SET
-            entry_date=?,
-            shop_id=?,
-            product_id=?,
-            liter=?,
-            rate=?,
-            total_amount=?,
-            paid_amount=?,
-            balance_amount=?
-        WHERE id=?
-        """,
-        (
-            entry_date,
-            shop_id,
-            product_id,
-            liter,
-            rate,
-            total,
-            paid,
-            balance,
-            id
-        ))
+        cursor.execute(
+            "DELETE FROM entries WHERE group_id=?",
+            (group_id,)
+        )
+
+        for i in range(len(product_ids)):
+            cursor.execute("""
+            INSERT INTO entries
+            (
+                group_id,
+                entry_date,
+                shop_id,
+                product_id,
+                liter,
+                rate,
+                total_amount,
+                paid_amount,
+                balance_amount
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                group_id,
+                entry_date,
+                shop_id,
+                product_ids[i],
+                liters[i],
+                rates[i],
+                totals[i],
+                paid if i == 0 else 0,
+                balance if i == 0 else 0
+            ))
 
         conn.commit()
+        conn.close()
 
         return redirect("/entry")
 
-    cursor.execute(
-        "SELECT * FROM entries WHERE id=?",
-        (id,)
-    )
+    cursor.execute("""
+    SELECT *
+    FROM entries
+    WHERE group_id = ?
+    """, (group_id,))
 
-    entry = cursor.fetchone()
+    rows = cursor.fetchall()
+    print("ROWS =", rows)
 
     cursor.execute("SELECT * FROM shops")
     shops = cursor.fetchall()
@@ -373,9 +410,10 @@ def edit_entry(id):
 
     return render_template(
         "edit_entry.html",
-        entry=entry,
+        rows=rows,
         shops=shops,
-        products=products
+        products=products,
+        group_id=group_id
     )
 @app.route("/edit-shop/<int:id>", methods=["GET","POST"])
 def edit_shop(id):
