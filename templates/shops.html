@@ -49,9 +49,10 @@
         </a>
 
         <a href="/delete-shop/{{ shop[0] }}"
-           class="btn btn-danger btn-sm">
-           Delete
-        </a>
+   class="btn btn-danger btn-sm"
+   onclick="return confirm('Are you sure you want to delete this shop?')">
+   Delete
+</a>
     </td>
 </tr>
 {% endfor %}
