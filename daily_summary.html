@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<h2>Daily Summary Report</h2>
+
+<table class="table table-bordered">
+
+    <tr>
+        <th>Date</th>
+        <th>Total Collection</th>
+        <th>Total Paid</th>
+        <th>Total Balance</th>
+    </tr>
+
+    {% for row in reports %}
+    <tr>
+        <td>{{ row[0] }}</td>
+        <td>₹ {{ row[1] }}</td>
+        <td>₹ {{ row[2] }}</td>
+        <td>₹ {{ row[3] }}</td>
+    </tr>
+    {% endfor %}
+
+</table>
+
+{% endblock %}

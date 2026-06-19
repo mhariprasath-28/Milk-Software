@@ -1,0 +1,229 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+
+<div class="container-fluid">
+
+```
+<h2>Milk Entry</h2>
+
+<div class="row mb-4">
+
+    <div class="col-md-4">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5>Total Collection</h5>
+                <h3>₹ {{ total_collection }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h5>Total Paid</h5>
+                <h3>₹ {{ total_paid }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card bg-danger text-white">
+            <div class="card-body">
+                <h5>Total Balance</h5>
+                <h3>₹ {{ total_balance }}</h3>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="card p-3">
+
+    <form method="POST">
+
+        <div class="row">
+
+            <div class="col-md-4">
+                <label>Date</label>
+<input
+    type="date"
+    name="entry_date"
+    class="form-control"
+    value="{{ today }}"
+    required>
+            </div>
+
+            <div class="col-md-4">
+                <label>Shop Name</label>
+                <select name="shop_id" class="form-control">
+
+                    <option value="">Select Shop</option>
+
+                    {% for shop in shops %}
+                    <option value="{{ shop[0] }}">
+                        {{ shop[1] }}
+                    </option>
+                    {% endfor %}
+
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label>Product</label>
+                <select id="product"
+                        name="product_id"
+                        class="form-control">
+
+                    <option value="">Select Product</option>
+
+                    {% for product in products %}
+                    <option value="{{ product[0] }}"
+                            data-rate="{{ product[2] }}">
+                        {{ product[1] }}
+                    </option>
+                    {% endfor %}
+
+                </select>
+            </div>
+
+        </div>
+
+        <br>
+
+        <label>Liter</label>
+        <input type="number"
+               id="liter"
+               name="liter"
+               class="form-control">
+
+        <br>
+
+        <label>Rate</label>
+        <input type="number"
+               id="rate"
+               name="rate"
+               class="form-control"
+               readonly>
+
+        <br>
+
+        <label>Total Amount</label>
+        <input type="number"
+               id="total"
+               name="total"
+               class="form-control"
+               readonly>
+
+        <br>
+
+        <label>Paid Amount</label>
+        <input type="number"
+               id="paid"
+               name="paid"
+               class="form-control">
+
+        <br>
+
+        <label>Balance Amount</label>
+        <input type="number"
+               id="balance"
+               name="balance"
+               class="form-control"
+               readonly>
+
+        <br>
+
+        <button type="submit" class="btn btn-success">
+            Save Entry
+        </button>
+
+    </form>
+
+    <hr>
+
+    <h3>Saved Entries</h3>
+
+    <table class="table table-bordered">
+
+        <tr>
+            <th>ID</th>
+            <th>Date</th>
+            <th>Shop</th>
+            <th>Product</th>
+            <th>Liter</th>
+            <th>Total</th>
+            <th>Paid</th>
+            <th>Balance</th>
+            <th>Action</th>
+        </tr>
+
+        {% for row in entries %}
+        <tr>
+    <td>{{ row[0] }}</td>
+    <td>{{ row[1] }}</td>
+    <td>{{ row[2] }}</td>
+    <td>{{ row[3] }}</td>
+    <td>{{ row[4] }}</td>
+    <td>{{ row[6] }}</td>
+    <td>{{ row[7] }}</td>
+    <td>{{ row[8] }}</td>
+
+    <td>
+          <a href="/edit-entry/{{ row[0] }}"
+       class="btn btn-warning btn-sm">
+       Edit
+    </a>
+        <a href="/delete-entry/{{ row[0] }}"
+           class="btn btn-danger btn-sm"
+           onclick="return confirm('Delete this entry?')">
+            Delete
+        </a>
+    </td>
+</tr>
+        {% endfor %}
+
+    </table>
+
+</div>
+```
+
+</div>
+
+<script>
+
+const product = document.getElementById("product");
+const liter = document.getElementById("liter");
+const rate = document.getElementById("rate");
+const total = document.getElementById("total");
+const paid = document.getElementById("paid");
+const balance = document.getElementById("balance");
+
+product.addEventListener("change", function () {
+
+    let selected = product.options[product.selectedIndex];
+
+    rate.value = selected.getAttribute("data-rate") || 0;
+
+    calculate();
+});
+
+liter.addEventListener("input", calculate);
+paid.addEventListener("input", calculate);
+
+function calculate() {
+
+    let ltr = parseFloat(liter.value) || 0;
+    let rt = parseFloat(rate.value) || 0;
+    let pd = parseFloat(paid.value) || 0;
+
+    let totalAmount = ltr * rt;
+
+    total.value = totalAmount;
+    balance.value = totalAmount - pd;
+}
+
+</script>
+
+{% endblock %}

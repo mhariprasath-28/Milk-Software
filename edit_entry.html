@@ -1,0 +1,155 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<h2>Edit Entry</h2>
+
+<div class="card p-3">
+
+    <form method="POST">
+
+        <label>Date</label>
+        <input
+            type="date"
+            name="entry_date"
+            class="form-control"
+            value="{{ entry[1] }}"
+            required>
+
+        <br>
+
+        <label>Shop Name</label>
+        <select name="shop_id" class="form-control">
+
+            {% for shop in shops %}
+            <option value="{{ shop[0] }}"
+                {% if shop[0] == entry[2] %}selected{% endif %}>
+                {{ shop[1] }}
+            </option>
+            {% endfor %}
+
+        </select>
+
+        <br>
+
+        <label>Product</label>
+        <select id="product"
+                name="product_id"
+                class="form-control">
+
+            {% for product in products %}
+            <option value="{{ product[0] }}"
+                    data-rate="{{ product[2] }}"
+                    {% if product[0] == entry[3] %}selected{% endif %}>
+                {{ product[1] }}
+            </option>
+            {% endfor %}
+
+        </select>
+
+        <br>
+
+        <label>Liter</label>
+        <input
+            type="number"
+            id="liter"
+            name="liter"
+            class="form-control"
+            value="{{ entry[4] }}">
+
+        <br>
+
+        <label>Rate</label>
+        <input
+            type="number"
+            id="rate"
+            name="rate"
+            class="form-control"
+            value="{{ entry[5] }}">
+
+        <br>
+
+        <label>Total Amount</label>
+        <input
+            type="number"
+            id="total"
+            name="total"
+            class="form-control"
+            value="{{ entry[6] }}"
+            readonly>
+
+        <br>
+
+        <label>Paid Amount</label>
+        <input
+            type="number"
+            id="paid"
+            name="paid"
+            class="form-control"
+            value="{{ entry[7] }}">
+
+        <br>
+
+        <label>Balance Amount</label>
+        <input
+            type="number"
+            id="balance"
+            name="balance"
+            class="form-control"
+            value="{{ entry[8] }}"
+            readonly>
+
+        <br>
+
+        <button type="submit"
+                class="btn btn-primary">
+            Update Entry
+        </button>
+
+        <a href="/entry"
+           class="btn btn-secondary">
+            Cancel
+        </a>
+
+    </form>
+
+</div>
+
+<script>
+
+const product = document.getElementById("product");
+const liter = document.getElementById("liter");
+const rate = document.getElementById("rate");
+const total = document.getElementById("total");
+const paid = document.getElementById("paid");
+const balance = document.getElementById("balance");
+
+function calculate() {
+
+    let ltr = parseFloat(liter.value) || 0;
+    let rt = parseFloat(rate.value) || 0;
+    let pd = parseFloat(paid.value) || 0;
+
+    let totalAmount = ltr * rt;
+
+    total.value = totalAmount;
+    balance.value = totalAmount - pd;
+}
+
+product.addEventListener("change", function () {
+
+    let selected =
+        product.options[product.selectedIndex];
+
+    rate.value =
+        selected.getAttribute("data-rate") || 0;
+
+    calculate();
+});
+
+liter.addEventListener("input", calculate);
+paid.addEventListener("input", calculate);
+
+</script>
+
+{% endblock %}

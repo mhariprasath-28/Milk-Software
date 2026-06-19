@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<h2>Outstanding Balance Report</h2>
+
+<div class="card p-3">
+
+<table class="table table-bordered">
+
+    <tr>
+        <th>Shop Name</th>
+        <th>Balance Amount</th>
+    </tr>
+
+    {% for row in reports %}
+    <tr>
+        <td>{{ row[0] }}</td>
+        <td>
+            <span class="badge bg-danger">
+                ₹ {{ row[1] }}
+            </span>
+        </td>
+    </tr>
+    {% endfor %}
+
+</table>
+
+</div>
+
+{% endblock %}

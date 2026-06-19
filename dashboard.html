@@ -1,0 +1,111 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<h2>Dashboard</h2>
+
+<div class="row">
+    <form method="GET" action="/">
+
+    <div class="row mb-3">
+
+        <div class="col-md-4">
+            <label>From Date</label>
+            <input
+                type="date"
+                name="from_date"
+                class="form-control"
+                value="{{ from_date }}">
+        </div>
+
+        <div class="col-md-4">
+            <label>To Date</label>
+            <input
+                type="date"
+                name="to_date"
+                class="form-control"
+                value="{{ to_date }}">
+        </div>
+
+        <div class="col-md-4">
+            <br>
+            <button
+                type="submit"
+                class="btn btn-primary">
+                Filter
+            </button>
+
+            <a
+                href="/"
+                class="btn btn-secondary">
+                Clear
+            </a>
+            <a href="/export-excel"
+   class="btn btn-success">
+   Export Excel
+</a>
+        </div>
+
+    </div>
+
+</form>
+
+```
+<div class="col-md-4 mb-3">
+    <div class="card bg-primary text-white">
+        <div class="card-body">
+            <h5>Total Collection</h5>
+            <h3>₹ {{ total_collection }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-4 mb-3">
+    <div class="card bg-success text-white">
+        <div class="card-body">
+            <h5>Total Paid</h5>
+            <h3>₹ {{ total_paid }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-4 mb-3">
+    <div class="card bg-danger text-white">
+        <div class="card-body">
+            <h5>Total Balance</h5>
+            <h3>₹ {{ total_balance }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-4 mb-3">
+    <div class="card bg-info text-white">
+        <div class="card-body">
+            <h5>Total Shops</h5>
+            <h3>{{ total_shops }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-4 mb-3">
+    <div class="card bg-warning">
+        <div class="card-body">
+            <h5>Total Products</h5>
+            <h3>{{ total_products }}</h3>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-4 mb-3">
+    <div class="card bg-secondary text-white">
+        <div class="card-body">
+            <h5>Total Entries</h5>
+            <h3>{{ total_entries }}</h3>
+        </div>
+    </div>
+</div>
+```
+
+</div>
+
+{% endblock %}

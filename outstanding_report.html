@@ -1,0 +1,190 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+```
+<h2 class="mb-4">Outstanding Report</h2>
+
+<div class="card p-3">
+
+    <div class="row mb-3">
+
+        <!-- <div class="col-md-4">
+            <input
+                type="text"
+                id="search"
+                class="form-control"
+                placeholder="Search Shop Name">
+        </div> -->
+
+    </div>
+    <form method="GET">
+
+<div class="row mb-3">
+
+```
+<div class="col-md-2">
+    <label>From Date</label>
+    <input type="date"
+           name="from_date"
+           class="form-control">
+</div>
+
+<div class="col-md-2">
+    <label>To Date</label>
+    <input type="date"
+           name="to_date"
+           class="form-control">
+</div>
+
+<div class="col-md-3">
+    <label>Shop</label>
+    <select name="shop_id"
+            class="form-control">
+
+        <option value="">
+            All Shops
+        </option>
+
+        {% for shop in shops %}
+        <option value="{{ shop[0] }}">
+            {{ shop[1] }}
+        </option>
+        {% endfor %}
+
+    </select>
+</div>
+
+<div class="col-md-3">
+    <label>Product</label>
+    <select name="product_id"
+            class="form-control">
+
+        <option value="">
+            All Products
+        </option>
+
+        {% for product in products %}
+        <option value="{{ product[0] }}">
+            {{ product[1] }}
+        </option>
+        {% endfor %}
+
+    </select>
+</div>
+
+<div class="col-md-2">
+
+    <label>&nbsp;</label>
+
+    <button
+        type="submit"
+        class="btn btn-primary w-100">
+        Filter
+    </button>
+
+</div>
+```
+
+</div>
+
+</form>
+
+<div class="mb-3">
+
+```
+<a href="/export-excel"
+   class="btn btn-success">
+    Export Excel
+</a>
+
+<a href="/export-pdf"
+   class="btn btn-danger">
+    Export PDF
+</a>
+```
+
+</div>
+
+
+    <table class="table table-bordered table-hover">
+
+        <thead class="table-dark">
+            <tr>
+                <th>S.No</th>
+                <th>Shop Name</th>
+                <th>Total Collection</th>
+                <th>Total Paid</th>
+                <th>Total Balance</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            {% for row in reports %}
+            <tr>
+
+                <td>{{ loop.index }}</td>
+
+                <td>
+                    {{ row[0] }}
+                </td>
+
+                <td>
+                    ₹ {{ row[1] }}
+                </td>
+
+                <td>
+                    ₹ {{ row[2] }}
+                </td>
+
+                <td>
+                    <span class="text-danger fw-bold">
+                        ₹ {{ row[3] }}
+                    </span>
+                </td>
+
+            </tr>
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</div>
+```
+
+</div>
+
+<script>
+
+document.getElementById("search")
+.addEventListener("keyup", function () {
+
+    let value = this.value.toLowerCase();
+
+    let rows =
+        document.querySelectorAll("tbody tr");
+
+    rows.forEach(function(row){
+
+        if(
+            row.innerText
+            .toLowerCase()
+            .includes(value)
+        ){
+            row.style.display = "";
+        }
+        else{
+            row.style.display = "none";
+        }
+
+    });
+
+});
+
+</script>
+
+{% endblock %}

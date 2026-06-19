@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<h2>Product Wise Report</h2>
+
+<table class="table table-bordered">
+
+    <tr>
+        <th>Product</th>
+        <th>Total Liter</th>
+        <th>Total Amount</th>
+    </tr>
+
+    {% for row in reports %}
+    <tr>
+        <td>{{ row[0] }}</td>
+        <td>{{ row[1] }}</td>
+        <td>₹ {{ row[2] }}</td>
+    </tr>
+    {% endfor %}
+
+</table>
+
+{% endblock %}
