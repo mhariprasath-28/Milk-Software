@@ -836,5 +836,19 @@ def export_pdf():
         pdf_file,
         as_attachment=True
     )
+@app.route("/clear-data")
+def clear_data():
+
+    conn = sqlite3.connect("milk.db")
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM entries")
+    cursor.execute("DELETE FROM sqlite_sequence WHERE name='entries'")
+
+    conn.commit()
+    conn.close()
+
+    return "Entries Cleared Successfully"
+    
 if __name__ == "__main__":
     app.run(debug=True)
