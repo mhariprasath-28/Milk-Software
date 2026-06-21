@@ -1,0 +1,242 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+```
+<h2>Payment Entry</h2>
+
+<div class="card p-3">
+
+    <form method="POST">
+
+        <div class="row">
+
+            <div class="col-md-3">
+                <label>Date</label>
+                <input type="date"
+                       name="payment_date"
+                       class="form-control"
+                       value="{{ today }}"
+                       required>
+            </div>
+
+            <div class="col-md-3">
+                <label>Party Name</label>
+                <input type="text"
+                       name="person_name"
+                       class="form-control"
+                       required>
+            </div>
+
+            <div class="col-md-2">
+                <label>Received Amount</label>
+                <input type="number"
+                       id="received"
+                       name="received_amount"
+                       class="form-control">
+            </div>
+
+            <div class="col-md-2">
+                <label>Paid Amount</label>
+                <input type="number"
+                       id="paid"
+                       name="paid_amount"
+                       class="form-control">
+            </div>
+
+            <div class="col-md-2">
+                <label>Balance</label>
+                <input type="number"
+                       id="balance"
+                       name="balance_amount"
+                       class="form-control"
+                       readonly>
+            </div>
+
+        </div>
+
+        <br>
+
+        <label>Remarks</label>
+        <textarea name="remarks"
+                  class="form-control"></textarea>
+
+        <br>
+
+        <button type="submit"
+                class="btn btn-success">
+            Save Entry
+        </button>
+
+    </form>
+
+</div>
+
+<br>
+
+<div class="card p-3">
+
+    <form method="GET">
+
+        <div class="row">
+
+            <div class="col-md-3">
+                <label>From Date</label>
+                <input type="date"
+                       name="from_date"
+                       class="form-control"
+                       value="{{ from_date }}">
+            </div>
+
+            <div class="col-md-3">
+                <label>To Date</label>
+                <input type="date"
+                       name="to_date"
+                       class="form-control"
+                       value="{{ to_date }}">
+            </div>
+
+            <div class="col-md-3">
+                <label>Search Party</label>
+                <input type="text"
+                       name="search"
+                       class="form-control"
+                       value="{{ search }}">
+            </div>
+
+            <div class="col-md-3">
+
+                <br>
+
+                <button type="submit"
+                        class="btn btn-primary">
+                    Filter
+                </button>
+
+                <a href="/payment-entry"
+                   class="btn btn-secondary">
+                    Clear
+                </a>
+
+                <a href="/export-payment-excel"
+                   class="btn btn-success">
+                    Excel
+                </a>
+
+                <a href="/export-payment-pdf"
+                   class="btn btn-danger">
+                    PDF
+                </a>
+
+            </div>
+
+        </div>
+
+    </form>
+
+    <hr>
+
+    <table class="table table-bordered table-hover">
+
+        <thead>
+
+            <tr>
+                <th>S.No</th>
+                <th>Date</th>
+                <th>Party Name</th>
+                <th>Received</th>
+                <th>Paid</th>
+                <th>Balance</th>
+                <th>Remarks</th>
+                <th>Action</th>
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            {% for row in payments %}
+
+            <tr>
+
+                <td>{{ loop.index }}</td>
+                <td>{{ row[1] }}</td>
+                <td>{{ row[2] }}</td>
+
+                <td>₹ {{ row[3] }}</td>
+
+                <td>₹ {{ row[4] }}</td>
+
+                <td>
+                    <span class="text-danger fw-bold">
+                        ₹ {{ row[5] }}
+                    </span>
+                </td>
+
+                <td>{{ row[6] }}</td>
+
+                <td>
+
+                    <a href="/edit-payment/{{ row[0] }}"
+                       class="btn btn-warning btn-sm">
+                        Edit
+                    </a>
+
+                    <a href="/delete-payment/{{ row[0] }}"
+                       class="btn btn-danger btn-sm"
+                       onclick="return confirm('Delete this entry?')">
+                        Delete
+                    </a>
+
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</div>
+```
+
+</div>
+
+<script>
+
+const received =
+document.getElementById("received");
+
+const paid =
+document.getElementById("paid");
+
+const balance =
+document.getElementById("balance");
+
+received.addEventListener(
+    "input",
+    calculateBalance
+);
+
+paid.addEventListener(
+    "input",
+    calculateBalance
+);
+
+function calculateBalance(){
+
+    let r =
+    parseFloat(received.value) || 0;
+
+    let p =
+    parseFloat(paid.value) || 0;
+
+    balance.value = r - p;
+}
+
+</script>
+
+{% endblock %}
