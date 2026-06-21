@@ -9,6 +9,11 @@ from flask import Flask, render_template, request, redirect, send_file
 from datetime import date
 import sqlite3
 import pandas as pd
+from flask import send_file
+from reportlab.platypus import *
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet
 
 from reportlab.platypus import (
     SimpleDocTemplate,
@@ -54,6 +59,17 @@ CREATE TABLE IF NOT EXISTS entries(
     total_amount REAL,
     paid_amount REAL,
     balance_amount REAL
+)
+""")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS payment_entries(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    payment_date TEXT,
+    person_name TEXT,
+    received_amount REAL,
+    paid_amount REAL,
+    balance_amount REAL,
+    remarks TEXT
 )
 """)
 conn = sqlite3.connect("milk.db")
@@ -848,7 +864,248 @@ def clear_data():
     conn.commit()
     conn.close()
 
-    return "Entries Cleared Successfully"
-    
+    return "Entries Cleared Successfully"   
+@app.route("/payment-entry", methods=["GET", "POST"])
+def payment_entry():
+
+    conn = sqlite3.connect("milk.db")
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+
+        payment_date = request.form["payment_date"] 
+        person_name = request.form["person_name"] 
+        received_amount = float( request.form.get("received_amount", 0) or 0 ) 
+        paid_amount = float( request.form.get("paid_amount", 0) or 0 ) 
+        balance_amount = ( received_amount - paid_amount ) 
+        remarks = request.form["remarks"]
+        cursor.execute("""
+            INSERT INTO payment_entries
+            (
+                payment_date,
+                person_name,
+                received_amount,
+                paid_amount,
+                balance_amount,
+                remarks
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            payment_date,
+            person_name,
+            received_amount,
+            paid_amount,
+            balance_amount,
+            remarks
+        ))
+
+        conn.commit()
+
+        return redirect("/payment-entry")
+
+    from_date = request.args.get("from_date") 
+    to_date = request.args.get("to_date") 
+    search = request.args.get("search") 
+    query = """ SELECT * FROM payment_entries WHERE 1=1 """ 
+    params = [] 
+    if from_date: 
+        query += """ 
+        AND payment_date >= ? 
+        """ 
+        params.append(from_date) 
+    if to_date: 
+        query += """ AND payment_date <= ? """ 
+        params.append(to_date) 
+    if search: 
+        query += """ AND person_name LIKE ? """ 
+        params.append( f"%{search}%" ) 
+    query += """ ORDER BY payment_date DESC """ 
+    cursor.execute( query, params ) 
+    payments = cursor.fetchall() 
+    today = date.today().strftime( "%Y-%m-%d" ) 
+    conn.close() 
+    return render_template( "payment_entry.html", payments=payments, today=today, from_date=from_date, to_date=to_date, search=search )
+@app.route("/edit-payment/<int:id>", methods=["GET", "POST"])
+def edit_payment(id):
+
+    conn = sqlite3.connect("milk.db")
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+
+        payment_date = request.form["payment_date"]
+        person_name = request.form["person_name"]
+        received_amount = request.form["received_amount"]
+        paid_amount = request.form["paid_amount"]
+        balance_amount = request.form["balance_amount"]
+        remarks = request.form["remarks"]
+
+        cursor.execute("""
+            UPDATE payment_entries
+            SET payment_date=?,
+                person_name=?,
+                received_amount=?,
+                paid_amount=?,
+                balance_amount=?,
+                remarks=?
+            WHERE id=?
+        """, (
+            payment_date,
+            person_name,
+            received_amount,
+            paid_amount,
+            balance_amount,
+            remarks,
+            id
+        ))
+
+        conn.commit()
+        conn.close()
+
+        return redirect("/payment-entry")
+
+    cursor.execute(
+        "SELECT * FROM payment_entries WHERE id=?",
+        (id,)
+    )
+
+    payment = cursor.fetchone()
+
+    conn.close()
+
+    return render_template(
+        "edit_payment.html",
+        payment=payment
+    )
+@app.route("/delete-payment/<int:id>")
+def delete_payment(id):
+
+    conn = sqlite3.connect("milk.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "DELETE FROM payment_entries WHERE id=?",
+        (id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/payment-entry")
+@app.route("/export-payment-excel")
+def export_payment_excel():
+
+    conn = sqlite3.connect("milk.db")
+
+    query = """
+    SELECT
+        payment_date,
+        person_name,
+        received_amount,
+        paid_amount,
+        balance_amount,
+        remarks
+    FROM payment_entries
+    ORDER BY payment_date DESC
+    """
+
+    df = pd.read_sql_query(query, conn)
+
+    file_name = "Payment_Report.xlsx"
+
+    df.to_excel(
+        file_name,
+        index=False
+    )
+
+    conn.close()
+
+    return send_file(
+        file_name,
+        as_attachment=True
+    )
+@app.route("/export-payment-pdf")
+def export_payment_pdf():
+
+    conn = sqlite3.connect("milk.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        payment_date,
+        person_name,
+        received_amount,
+        paid_amount,
+        balance_amount,
+        remarks
+    FROM payment_entries
+    ORDER BY payment_date DESC
+    """)
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    pdf_file = "Payment_Report.pdf"
+
+    doc = SimpleDocTemplate(pdf_file, pagesize=landscape(A4))
+
+    styles = getSampleStyleSheet()
+
+    elements = []
+
+    title = Paragraph(
+        "<b>PAYMENT REPORT</b>",
+        styles["Title"]
+    )
+
+    elements.append(title)
+
+    elements.append(Spacer(1, 10))
+
+    data = [
+        [
+            "Payment Date",
+            "Person Name",
+            "Received Amount",
+            "Paid Amount",
+            "Balance Amount",
+            "Remarks"
+        ]
+    ]
+
+    for row in rows:
+        data.append([
+            str(row[0]),
+            str(row[1]),
+            f"₹ {row[2]}",
+            f"₹ {row[3]}",
+            f"₹ {row[4]}",
+            str(row[5])
+        ])
+
+    table = Table(data)
+
+    table.setStyle(TableStyle([
+
+        ('BACKGROUND', (0,0), (-1,0), colors.darkblue),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+
+        ('GRID', (0,0), (-1,-1), 1, colors.black),
+
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+
+        ('ALIGN', (0,0), (-1,-1), 'CENTER')
+
+    ]))
+
+    elements.append(table)
+
+    doc.build(elements)
+
+    return send_file(
+        pdf_file,
+        as_attachment=True
+    )
 if __name__ == "__main__":
     app.run(debug=True)
