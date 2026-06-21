@@ -1,0 +1,98 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<h2>Edit Payment</h2>
+
+<div class="card p-3">
+
+```
+<form method="POST">
+
+    <label>Date</label>
+    <input type="date"
+           name="payment_date"
+           class="form-control"
+           value="{{ payment[1] }}"
+           required>
+
+    <br>
+
+    <label>Party Name</label>
+    <input type="text"
+           name="person_name"
+           class="form-control"
+           value="{{ payment[2] }}"
+           required>
+
+    <br>
+
+    <label>Received Amount</label>
+    <input type="number"
+           id="received"
+           name="received_amount"
+           class="form-control"
+           value="{{ payment[3] }}"
+           required>
+
+    <br>
+
+    <label>Paid Amount</label>
+    <input type="number"
+           id="paid"
+           name="paid_amount"
+           class="form-control"
+           value="{{ payment[4] }}"
+           required>
+
+    <br>
+
+    <label>Balance Amount</label>
+    <input type="number"
+           id="balance"
+           name="balance_amount"
+           class="form-control"
+           value="{{ payment[5] }}"
+           readonly>
+
+    <br>
+
+    <label>Remarks</label>
+    <textarea name="remarks"
+              class="form-control">{{ payment[6] }}</textarea>
+
+    <br>
+
+    <button type="submit"
+            class="btn btn-success">
+        Update
+    </button>
+
+    <a href="/payment-entry"
+       class="btn btn-secondary">
+        Cancel
+    </a>
+
+</form>
+```
+
+</div>
+
+<script>
+
+const received = document.getElementById("received");
+const paid = document.getElementById("paid");
+const balance = document.getElementById("balance");
+
+function calculateBalance() {
+    let r = parseFloat(received.value) || 0;
+    let p = parseFloat(paid.value) || 0;
+    balance.value = r - p;
+}
+
+received.addEventListener("input", calculateBalance);
+paid.addEventListener("input", calculateBalance);
+
+</script>
+
+{% endblock %}
