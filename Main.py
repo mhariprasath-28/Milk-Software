@@ -281,31 +281,30 @@ ORDER BY shop_name
 
     # Entry Report
     cursor.execute("""
-SELECT
-    e.group_id,
-    e.entry_date,
-    s.shop_name,
-    MIN(e.shop_id) as shop_id,
-    GROUP_CONCAT(
-        p.product_name || ' - ' ||
-        e.liter || 'L - ₹' ||
-        e.total_amount,
-        '<br>'
-    ) as products,
-    SUM(e.total_amount) as total,
-    MAX(e.paid_amount) as paid,
-    MAX(e.balance_amount) as balance
-FROM entries e
-JOIN shops s ON e.shop_id = s.id
-JOIN products p ON e.product_id = p.id
-GROUP BY e.group_id
-ORDER BY e.entry_date DESC
-""")
+    SELECT
+        GROUP_CONCAT(DISTINCT e.group_id) as group_ids,
+        e.entry_date,
+        s.shop_name,
+        e.shop_id,
+        GROUP_CONCAT(
+            p.product_name || ' - ' ||
+            e.liter || 'L - ₹' ||
+            e.total_amount,
+            '<br>'
+        ) as products,
+        SUM(e.total_amount) as total,
+        SUM(e.paid_amount) as paid,
+        0 as balance
+    FROM entries e
+    JOIN shops s ON e.shop_id = s.id
+    JOIN products p ON e.product_id = p.id
+    GROUP BY e.shop_id, e.entry_date
+    ORDER BY e.entry_date ASC
+    """)
 
     entries = cursor.fetchall()
-
     # entries are fetched ORDER BY entry_date DESC — sort oldest first to run the balance forward
-    entries_sorted = sorted(entries, key=lambda r: r[1])  # r[1] = entry_date
+    entries_sorted = entries
 
     # seed each shop's running balance with its payment_entries opening balance
     cursor.execute("SELECT id FROM shops")
@@ -328,14 +327,17 @@ ORDER BY e.entry_date DESC
         total = float(row[5] or 0)
         paid = float(row[6] or 0)
 
-        running_balance[shop_id] = running_balance.get(shop_id, 0) + total - paid
+        old_bal = running_balance.get(shop_id, 0)
+
+        running_balance[shop_id] = old_bal + total - paid
 
         temp = list(row)
         temp[7] = running_balance[shop_id]
+        temp.append(old_bal)   # index 8 = old balance before this entry
 
         new_entries.append(temp)
 
-    new_entries.reverse()  # back to most-recent-first for display
+    new_entries.reverse()
 
     entries = new_entries
 
@@ -359,16 +361,18 @@ ORDER BY e.entry_date DESC
     selected_shop=selected_shop
 
 )
-@app.route("/delete-entry/<group_id>")
-def delete_entry(group_id):
+@app.route("/delete-entry/<group_ids>")
+def delete_entry(group_ids):
 
     conn = sqlite3.connect("milk.db")
     cursor = conn.cursor()
 
-    cursor.execute("""
-    DELETE FROM entries
-    WHERE group_id = ?
-    """, (group_id,))
+    id_list = group_ids.split(",")
+
+    cursor.executemany(
+        "DELETE FROM entries WHERE group_id = ?",
+        [(gid,) for gid in id_list]
+    )
 
     conn.commit()
     conn.close()
@@ -440,11 +444,13 @@ def home():
         from_date=from_date,
         to_date=to_date
     )
-@app.route("/edit-entry/<group_id>", methods=["GET", "POST"])
-def edit_entry(group_id):
+@app.route("/edit-entry/<group_ids>", methods=["GET", "POST"])
+def edit_entry(group_ids):
 
     conn = sqlite3.connect("milk.db")
     cursor = conn.cursor()
+
+    id_list = group_ids.split(",")
 
     if request.method == "POST":
 
@@ -459,10 +465,13 @@ def edit_entry(group_id):
         paid = request.form["paid"]
         balance = request.form["balance"]
 
-        cursor.execute(
-            "DELETE FROM entries WHERE group_id=?",
-            (group_id,)
+        cursor.executemany(
+            "DELETE FROM entries WHERE group_id = ?",
+            [(gid,) for gid in id_list]
         )
+
+        import uuid
+        new_group_id = str(uuid.uuid4())
 
         for i in range(len(product_ids)):
             cursor.execute("""
@@ -481,7 +490,7 @@ def edit_entry(group_id):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                group_id,
+                new_group_id,
                 entry_date,
                 shop_id,
                 product_ids[i],
@@ -497,14 +506,38 @@ def edit_entry(group_id):
 
         return redirect("/entry")
 
-    cursor.execute("""
-    SELECT *
-    FROM entries
-    WHERE group_id = ?
-    """, (group_id,))
+    placeholders = ",".join("?" for _ in id_list)
+
+    cursor.execute(f"""
+        SELECT *
+        FROM entries
+        WHERE group_id IN ({placeholders})
+    """, id_list)
 
     rows = cursor.fetchall()
-    print("ROWS =", rows)
+
+    shop_id = rows[0][2] if rows else None
+    old_balance = 0
+
+    if shop_id:
+        cursor.execute("""
+            SELECT IFNULL(SUM(opening_balance),0)
+            FROM payment_entries
+            WHERE shop_id=?
+        """, (shop_id,))
+        payment_total = cursor.fetchone()[0]
+
+        exclude_placeholders = ",".join("?" for _ in id_list)
+        cursor.execute(f"""
+            SELECT
+                IFNULL(SUM(total_amount),0),
+                IFNULL(SUM(paid_amount),0)
+            FROM entries
+            WHERE shop_id=? AND group_id NOT IN ({exclude_placeholders})
+        """, [shop_id] + id_list)
+        entries_total, entries_paid = cursor.fetchone()
+
+        old_balance = payment_total + entries_total - entries_paid
 
     cursor.execute("SELECT * FROM shops")
     shops = cursor.fetchall()
@@ -519,7 +552,8 @@ def edit_entry(group_id):
         rows=rows,
         shops=shops,
         products=products,
-        group_id=group_id
+        group_id=group_ids,
+        old_balance=old_balance
     )
 @app.route("/edit-shop/<int:id>", methods=["GET","POST"])
 def edit_shop(id):
