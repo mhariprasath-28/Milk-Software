@@ -25,6 +25,7 @@
             <div class="col-md-4">
                 <label>Shop Name</label>
                 <select name="shop_id"
+                        id="shop_id"
                         class="form-control"
                         required>
 
@@ -38,6 +39,14 @@
 
                 </select>
             </div>
+      <div class="alert alert-warning">
+    Old Balance :
+    <b>₹ {{ old_balance }}</b>
+</div>
+
+<input type="hidden"
+       id="old_balance"
+       value="{{ old_balance }}">
 
         </div>
 
@@ -313,15 +322,15 @@ function calculateRow(row) {
 }
 
 function calculateGrandTotal() {
+  
 
     let grandTotal = 0;
+    
 
     document.querySelectorAll(".total")
-        .forEach(t => {
-
-            grandTotal +=
-                parseFloat(t.value) || 0;
-        });
+    .forEach(t => {
+        grandTotal += parseFloat(t.value) || 0;
+    });
 
     document.getElementById("grand_total").value =
         grandTotal;
@@ -331,16 +340,40 @@ function calculateGrandTotal() {
             document.getElementById("paid").value
         ) || 0;
 
+    let oldBalance =
+        parseFloat(
+            document.getElementById("old_balance").value
+        ) || 0;
+        
+
     document.getElementById("balance").value =
-        grandTotal - paid;
+        oldBalance + grandTotal - paid;
+        
 }
+document.getElementById("shop_id")
+.addEventListener("change", function(){
+
+    let shopId = this.value;
+
+    fetch("/get-old-balance/" + shopId)
+    .then(res => res.json())
+    .then(data => {
+
+        document.getElementById("old_balance").value =
+            data.balance;
+
+        document.querySelector(".alert-warning b")
+            .innerText = "₹ " + data.balance;
+
+        calculateGrandTotal();
+    });
+
+});
 
 document.getElementById("paid")
-    .addEventListener("input",
-        calculateGrandTotal);
+.addEventListener("input", calculateGrandTotal);
 
 attachEvents();
-
 </script>
 
 {% endblock %}
