@@ -1,3 +1,6 @@
+from re import search
+
+
 from flask import Flask, render_template, request, redirect
 from datetime import date
 import sqlite3
@@ -14,6 +17,7 @@ from reportlab.platypus import *
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
+from flask import jsonify
 
 from reportlab.platypus import (
     SimpleDocTemplate,
@@ -65,15 +69,25 @@ cursor.execute("""
 CREATE TABLE IF NOT EXISTS payment_entries(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     payment_date TEXT,
-    person_name TEXT,
-    received_amount REAL,
-    paid_amount REAL,
-    balance_amount REAL,
+    shop_id INTEGER,
+    opening_balance REAL,
     remarks TEXT
 )
 """)
 conn = sqlite3.connect("milk.db")
 cursor = conn.cursor()
+for col_def in [
+    "ADD COLUMN shop_id INTEGER",
+    "ADD COLUMN opening_balance REAL",
+    "ADD COLUMN remarks TEXT"
+]:  
+    try:
+        cursor.execute(f"ALTER TABLE payment_entries {col_def}")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass 
+
+conn.close()
 
 try:
     cursor.execute("""
@@ -162,6 +176,7 @@ def entry():
         liters = request.form.getlist("liter[]")
         rates = request.form.getlist("rate[]")
         totals = request.form.getlist("total[]")
+        old_balance = 0
         print("PRODUCTS =", product_ids)
         print("LITERS =", liters)
         print("RATES =", rates)
@@ -206,8 +221,34 @@ def entry():
 
     # Shop List
     cursor.execute("SELECT * FROM shops")
-    shops = cursor.fetchall()
+    selected_shop = request.args.get("shop_id")
+    cursor.execute("""
+SELECT *
+FROM shops
+ORDER BY shop_name
+""")
 
+    shops = cursor.fetchall()
+    old_balance = 0
+
+    if selected_shop:
+        cursor.execute("""
+            SELECT IFNULL(SUM(opening_balance),0)
+            FROM payment_entries
+            WHERE shop_id=?
+        """, (selected_shop,))
+        payment_total = cursor.fetchone()[0]
+
+        cursor.execute("""
+            SELECT
+                IFNULL(SUM(total_amount),0),
+                IFNULL(SUM(paid_amount),0)
+            FROM entries
+            WHERE shop_id=?
+        """, (selected_shop,))
+        entries_total, entries_paid = cursor.fetchone()
+
+        old_balance = payment_total + entries_total - entries_paid
     # Product List
     cursor.execute("SELECT * FROM products")
     products = cursor.fetchall()
@@ -255,6 +296,45 @@ ORDER BY e.entry_date DESC
 """)
 
     entries = cursor.fetchall()
+
+    # entries are fetched ORDER BY entry_date DESC — sort oldest first to run the balance forward
+    entries_sorted = sorted(entries, key=lambda r: r[1])  # r[1] = entry_date
+
+    # seed each shop's running balance with its payment_entries opening balance
+    cursor.execute("SELECT id FROM shops")
+    shop_ids = [r[0] for r in cursor.fetchall()]
+
+    running_balance = {}
+    for sid in shop_ids:
+        cursor.execute("""
+            SELECT IFNULL(SUM(opening_balance),0)
+            FROM payment_entries
+            WHERE shop_id=?
+        """, (sid,))
+        running_balance[sid] = cursor.fetchone()[0]
+
+    new_entries = []
+
+    for row in entries_sorted:
+
+        shop_id = row[3]
+        total = float(row[5] or 0)
+        paid = float(row[6] or 0)
+
+        running_balance[shop_id] = running_balance.get(shop_id, 0) + total - paid
+
+        temp = list(row)
+        temp[7] = running_balance[shop_id]
+
+        new_entries.append(temp)
+
+    new_entries.reverse()  # back to most-recent-first for display
+
+    entries = new_entries
+
+    today = date.today().strftime("%Y-%m-%d")
+
+    conn.close()
     today = date.today().strftime("%Y-%m-%d")
 
     conn.close()
@@ -267,7 +347,10 @@ ORDER BY e.entry_date DESC
     total_collection=total_collection,
     total_paid=total_paid,
     total_balance=total_balance,
-    today=today
+    today=today,
+    old_balance=old_balance,
+    selected_shop=selected_shop
+
 )
 @app.route("/delete-entry/<group_id>")
 def delete_entry(group_id):
@@ -702,10 +785,20 @@ def outstanding_report():
     if to_date:
         query += " AND e.entry_date <= ? "
         params.append(to_date)
+    
+    old_balance = 0
 
     if shop_id:
         query += " AND s.id = ? "
         params.append(shop_id)
+        cursor.execute("""
+        SELECT IFNULL(SUM(opening_balance),0)
+        FROM payment_entries
+        WHERE shop_id=?
+        """, (shop_id,))
+
+        row = cursor.fetchone()
+        old_balance = row[0] if row else 0
 
     if product_id:
         query += " AND p.id = ? "
@@ -731,7 +824,9 @@ def outstanding_report():
         "outstanding_report.html",
         reports=reports,
         shops=shops,
-        products=products
+        products=products,
+        old_balance=old_balance
+
     )
 @app.route("/export-pdf")
 def export_pdf():
@@ -873,58 +968,106 @@ def payment_entry():
 
     if request.method == "POST":
 
-        payment_date = request.form["payment_date"] 
-        person_name = request.form["person_name"] 
-        received_amount = float( request.form.get("received_amount", 0) or 0 ) 
-        paid_amount = float( request.form.get("paid_amount", 0) or 0 ) 
-        balance_amount = ( received_amount - paid_amount ) 
+        payment_date = request.form["payment_date"]
+        shop_id = request.form["shop_id"]
+        opening_balance = request.form["opening_balance"]
         remarks = request.form["remarks"]
+
         cursor.execute("""
             INSERT INTO payment_entries
             (
                 payment_date,
-                person_name,
-                received_amount,
-                paid_amount,
-                balance_amount,
+                shop_id,
+                opening_balance,
                 remarks
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?)
         """, (
             payment_date,
-            person_name,
-            received_amount,
-            paid_amount,
-            balance_amount,
+            shop_id,
+            opening_balance,
             remarks
         ))
 
         conn.commit()
+        conn.close()
 
         return redirect("/payment-entry")
 
-    from_date = request.args.get("from_date") 
-    to_date = request.args.get("to_date") 
-    search = request.args.get("search") 
-    query = """ SELECT * FROM payment_entries WHERE 1=1 """ 
-    params = [] 
-    if from_date: 
-        query += """ 
-        AND payment_date >= ? 
-        """ 
-        params.append(from_date) 
-    if to_date: 
-        query += """ AND payment_date <= ? """ 
-        params.append(to_date) 
-    if search: 
-        query += """ AND person_name LIKE ? """ 
-        params.append( f"%{search}%" ) 
-    query += """ ORDER BY payment_date DESC """ 
-    cursor.execute( query, params ) 
-    payments = cursor.fetchall() 
-    today = date.today().strftime( "%Y-%m-%d" ) 
-    conn.close() 
-    return render_template( "payment_entry.html", payments=payments, today=today, from_date=from_date, to_date=to_date, search=search )
+    from_date = request.args.get("from_date")
+    to_date = request.args.get("to_date")
+    search = request.args.get("search")
+
+    query = """
+        SELECT
+            p.id,
+            p.payment_date,
+            s.shop_name,
+            p.opening_balance,
+            p.remarks
+        FROM payment_entries p
+        JOIN shops s ON p.shop_id = s.id
+        WHERE 1=1
+    """
+    params = []
+
+    if from_date:
+        query += " AND p.payment_date >= ? "
+        params.append(from_date)
+
+    if to_date:
+        query += " AND p.payment_date <= ? "
+        params.append(to_date)
+
+    if search:
+        query += " AND s.shop_name LIKE ? "
+        params.append(f"%{search}%")
+
+    query += " ORDER BY p.payment_date DESC "
+
+    cursor.execute(query, params)
+    payments = cursor.fetchall()
+
+    cursor.execute("SELECT id, shop_name FROM shops ORDER BY shop_name")
+    shops = cursor.fetchall()
+
+    # --- live current balance per shop ---
+    shop_balances = []
+    for sid, sname in shops:
+        cursor.execute("""
+            SELECT IFNULL(SUM(opening_balance),0)
+            FROM payment_entries
+            WHERE shop_id=?
+        """, (sid,))
+        payment_total = cursor.fetchone()[0]
+
+        cursor.execute("""
+            SELECT
+                IFNULL(SUM(total_amount),0),
+                IFNULL(SUM(paid_amount),0)
+            FROM entries
+            WHERE shop_id=?
+        """, (sid,))
+        entries_total, entries_paid = cursor.fetchone()
+
+        current_balance = payment_total + entries_total - entries_paid
+        shop_balances.append((sname, current_balance))
+    # --- end live balance block ---
+
+    today = date.today().strftime("%Y-%m-%d")
+
+    conn.close()
+
+    return render_template(
+        "payment_entry.html",
+        payments=payments,
+        shops=shops,
+        shop_balances=shop_balances,
+        today=today,
+        from_date=from_date,
+        to_date=to_date,
+        search=search
+    )
 @app.route("/edit-payment/<int:id>", methods=["GET", "POST"])
 def edit_payment(id):
 
@@ -934,27 +1077,21 @@ def edit_payment(id):
     if request.method == "POST":
 
         payment_date = request.form["payment_date"]
-        person_name = request.form["person_name"]
-        received_amount = request.form["received_amount"]
-        paid_amount = request.form["paid_amount"]
-        balance_amount = request.form["balance_amount"]
+        shop_id = request.form["shop_id"]
+        opening_balance = request.form["opening_balance"]
         remarks = request.form["remarks"]
 
         cursor.execute("""
             UPDATE payment_entries
             SET payment_date=?,
-                person_name=?,
-                received_amount=?,
-                paid_amount=?,
-                balance_amount=?,
+                shop_id=?,
+                opening_balance=?,
                 remarks=?
             WHERE id=?
         """, (
             payment_date,
-            person_name,
-            received_amount,
-            paid_amount,
-            balance_amount,
+            shop_id,
+            opening_balance,
             remarks,
             id
         ))
@@ -971,11 +1108,20 @@ def edit_payment(id):
 
     payment = cursor.fetchone()
 
+    cursor.execute("""
+        SELECT id, shop_name
+        FROM shops
+        ORDER BY shop_name
+    """)
+
+    shops = cursor.fetchall()
+
     conn.close()
 
     return render_template(
         "edit_payment.html",
-        payment=payment
+        payment=payment,
+        shops=shops
     )
 @app.route("/delete-payment/<int:id>")
 def delete_payment(id):
@@ -1000,10 +1146,8 @@ def export_payment_excel():
     query = """
     SELECT
         payment_date,
-        person_name,
-        received_amount,
-        paid_amount,
-        balance_amount,
+        shop_id,
+        opening_balance,
         remarks
     FROM payment_entries
     ORDER BY payment_date DESC
@@ -1031,15 +1175,14 @@ def export_payment_pdf():
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT
-        payment_date,
-        person_name,
-        received_amount,
-        paid_amount,
-        balance_amount,
-        remarks
-    FROM payment_entries
-    ORDER BY payment_date DESC
+        SELECT
+            p.payment_date,
+            s.shop_name,
+            p.opening_balance,
+            p.remarks
+        FROM payment_entries p
+        JOIN shops s ON p.shop_id = s.id
+        ORDER BY p.payment_date DESC
     """)
 
     rows = cursor.fetchall()
@@ -1066,10 +1209,8 @@ def export_payment_pdf():
     data = [
         [
             "Payment Date",
-            "Person Name",
-            "Received Amount",
-            "Paid Amount",
-            "Balance Amount",
+            "Shop Name",
+            "Opening Balance",
             "Remarks"
         ]
     ]
@@ -1079,9 +1220,7 @@ def export_payment_pdf():
             str(row[0]),
             str(row[1]),
             f"₹ {row[2]}",
-            f"₹ {row[3]}",
-            f"₹ {row[4]}",
-            str(row[5])
+            str(row[3])
         ])
 
     table = Table(data)
@@ -1107,5 +1246,34 @@ def export_payment_pdf():
         pdf_file,
         as_attachment=True
     )
+@app.route("/get-old-balance/<int:shop_id>")
+def get_old_balance(shop_id):
+
+    conn = sqlite3.connect("milk.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT IFNULL(SUM(opening_balance),0)
+        FROM payment_entries
+        WHERE shop_id=?
+    """, (shop_id,))
+    payment_total = cursor.fetchone()[0]
+
+    cursor.execute("""
+        SELECT
+            IFNULL(SUM(total_amount),0),
+            IFNULL(SUM(paid_amount),0)
+        FROM entries
+        WHERE shop_id=?
+    """, (shop_id,))
+    entries_total, entries_paid = cursor.fetchone()
+
+    balance = payment_total + entries_total - entries_paid
+
+    conn.close()
+
+    return jsonify({
+        "balance": balance
+    })
 if __name__ == "__main__":
     app.run(debug=True)
