@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS products(
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS entries(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id TEXT,
     entry_date TEXT,
     shop_id INTEGER,
     product_id INTEGER,
@@ -76,19 +77,25 @@ CREATE TABLE IF NOT EXISTS payment_entries(
 """)
 conn = sqlite3.connect("milk.db")
 cursor = conn.cursor()
+
 for col_def in [
     "ADD COLUMN shop_id INTEGER",
     "ADD COLUMN opening_balance REAL",
     "ADD COLUMN remarks TEXT"
-]:  
+]:
     try:
         cursor.execute(f"ALTER TABLE payment_entries {col_def}")
         conn.commit()
     except sqlite3.OperationalError:
-        pass 
+        pass
+
+try:
+    cursor.execute("ALTER TABLE entries ADD COLUMN group_id TEXT")
+    conn.commit()
+except sqlite3.OperationalError:
+    pass
 
 conn.close()
-
 try:
     cursor.execute("""
     ALTER TABLE entries
