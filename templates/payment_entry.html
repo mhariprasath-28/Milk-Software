@@ -4,8 +4,27 @@
 
 <div class="container-fluid">
 
-```
-<h2>Payment Entry</h2>
+<div class="card p-3 mb-3">
+    <h5>Current Shop Balances</h5>
+    <table class="table table-sm table-bordered">
+        <thead>
+            <tr>
+                <th>Shop</th>
+                <th>Current Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for shop_name, balance in shop_balances %}
+            <tr>
+                <td>{{ shop_name }}</td>
+                <td class="{% if balance > 0 %}text-danger fw-bold{% endif %}">
+                    ₹ {{ balance }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>  <h2>Payment Entry</h2>
 
 <div class="card p-3">
 
@@ -22,39 +41,22 @@
                        required>
             </div>
 
-            <div class="col-md-3">
-                <label>Party Name</label>
-                <input type="text"
-                       name="person_name"
-                       class="form-control"
-                       required>
-            </div>
+            <label>Shop Name</label>
+<select name="shop_id" class="form-control" required>
+    <option value="" selected disabled>-- Select Shop --</option>
+    {% for shop in shops %}
+    <option value="{{ shop[0] }}">
+        {{ shop[1] }}
+    </option>
+    {% endfor %}
+</select>
 
-            <div class="col-md-2">
-                <label>Received Amount</label>
-                <input type="number"
-                       id="received"
-                       name="received_amount"
-                       class="form-control">
-            </div>
+<br>
 
-            <div class="col-md-2">
-                <label>Paid Amount</label>
-                <input type="number"
-                       id="paid"
-                       name="paid_amount"
-                       class="form-control">
-            </div>
-
-            <div class="col-md-2">
-                <label>Balance</label>
-                <input type="number"
-                       id="balance"
-                       name="balance_amount"
-                       class="form-control"
-                       readonly>
-            </div>
-
+<label>Opening Balance</label>
+<input type="number"
+       name="opening_balance"
+       class="form-control">
         </div>
 
         <br>
@@ -140,66 +142,53 @@
 
     <table class="table table-bordered table-hover">
 
-        <thead>
+    <thead>
+        <tr>
+            <th>S.No</th>
+            <th>Date</th>
+            <th>Shop Name</th>
+            <th>Opening Balance</th>
+            <th>Remarks</th>
+            <th>Action</th>
+        </tr>
+    </thead>
 
-            <tr>
-                <th>S.No</th>
-                <th>Date</th>
-                <th>Party Name</th>
-                <th>Received</th>
-                <th>Paid</th>
-                <th>Balance</th>
-                <th>Remarks</th>
-                <th>Action</th>
-            </tr>
+    <tbody>
 
-        </thead>
+        {% for row in payments %}
 
-        <tbody>
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ row[1] }}</td>
+            <td>{{ row[2] }}</td>
 
-            {% for row in payments %}
+            <td>
+                <span class="text-danger fw-bold">
+                    ₹ {{ row[3] }}
+                </span>
+            </td>
 
-            <tr>
+            <td>{{ row[4] }}</td>
 
-                <td>{{ loop.index }}</td>
-                <td>{{ row[1] }}</td>
-                <td>{{ row[2] }}</td>
+            <td>
+                <a href="/edit-payment/{{ row[0] }}"
+                   class="btn btn-warning btn-sm">
+                    Edit
+                </a>
 
-                <td>₹ {{ row[3] }}</td>
+                <a href="/delete-payment/{{ row[0] }}"
+                   class="btn btn-danger btn-sm"
+                   onclick="return confirm('Delete this entry?')">
+                    Delete
+                </a>
+            </td>
+        </tr>
 
-                <td>₹ {{ row[4] }}</td>
+        {% endfor %}
 
-                <td>
-                    <span class="text-danger fw-bold">
-                        ₹ {{ row[5] }}
-                    </span>
-                </td>
+    </tbody>
 
-                <td>{{ row[6] }}</td>
-
-                <td>
-
-                    <a href="/edit-payment/{{ row[0] }}"
-                       class="btn btn-warning btn-sm">
-                        Edit
-                    </a>
-
-                    <a href="/delete-payment/{{ row[0] }}"
-                       class="btn btn-danger btn-sm"
-                       onclick="return confirm('Delete this entry?')">
-                        Delete
-                    </a>
-
-                </td>
-
-            </tr>
-
-            {% endfor %}
-
-        </tbody>
-
-    </table>
-
+</table>
 </div>
 ```
 
