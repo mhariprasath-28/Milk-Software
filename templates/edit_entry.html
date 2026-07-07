@@ -32,6 +32,14 @@
         {% endfor %}
 
     </select>
+    <div class="alert alert-warning">
+        Old Balance :
+        <b>₹ {{ old_balance }}</b>
+    </div>
+
+    <input type="hidden"
+           id="old_balance"
+           value="{{ old_balance }}">
 
     <br>
 
@@ -197,8 +205,13 @@ function calculateBalance() {
             document.getElementById("paid").value
         ) || 0;
 
+    let oldBalance =
+        parseFloat(
+            document.getElementById("old_balance").value
+        ) || 0;
+
     document.getElementById("balance").value =
-        grandTotal - paid;
+        oldBalance + grandTotal - paid;
 }
 
 document.querySelectorAll(".product-row")
