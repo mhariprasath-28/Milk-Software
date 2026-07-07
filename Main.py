@@ -805,10 +805,10 @@ def outstanding_report():
 
     query = """
     SELECT
+        s.id,
         s.shop_name,
         IFNULL(SUM(e.total_amount),0),
-        IFNULL(SUM(e.paid_amount),0),
-        IFNULL(SUM(e.balance_amount),0)
+        IFNULL(SUM(e.paid_amount),0)
     FROM shops s
     LEFT JOIN entries e
         ON s.id = e.shop_id
@@ -826,32 +826,41 @@ def outstanding_report():
     if to_date:
         query += " AND e.entry_date <= ? "
         params.append(to_date)
-    
-    old_balance = 0
 
     if shop_id:
         query += " AND s.id = ? "
         params.append(shop_id)
-        cursor.execute("""
-        SELECT IFNULL(SUM(opening_balance),0)
-        FROM payment_entries
-        WHERE shop_id=?
-        """, (shop_id,))
-
-        row = cursor.fetchone()
-        old_balance = row[0] if row else 0
 
     if product_id:
         query += " AND p.id = ? "
         params.append(product_id)
 
     query += """
-    GROUP BY s.shop_name
+    GROUP BY s.id, s.shop_name
     ORDER BY s.shop_name
     """
 
     cursor.execute(query, params)
-    reports = cursor.fetchall()
+    raw_reports = cursor.fetchall()
+
+    reports = []
+    old_balance = 0
+
+    for sid, sname, total, paid in raw_reports:
+
+        cursor.execute("""
+            SELECT IFNULL(SUM(opening_balance),0)
+            FROM payment_entries
+            WHERE shop_id=?
+        """, (sid,))
+        payment_total = cursor.fetchone()[0]
+
+        balance = payment_total + (total or 0) - (paid or 0)
+
+        reports.append((sname, total, paid, balance))
+
+        if shop_id and int(shop_id) == sid:
+            old_balance = payment_total
 
     cursor.execute("SELECT * FROM shops")
     shops = cursor.fetchall()
@@ -867,7 +876,6 @@ def outstanding_report():
         shops=shops,
         products=products,
         old_balance=old_balance
-
     )
 @app.route("/export-pdf")
 def export_pdf():
