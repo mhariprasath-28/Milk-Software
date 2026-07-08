@@ -584,7 +584,8 @@ def edit_entry(group_ids):
         products=products,
         group_id=group_ids,
         old_balance=old_balance
-    )@app.route("/edit-shop/<int:id>", methods=["GET","POST"])
+    )
+@app.route("/edit-shop/<int:id>", methods=["GET","POST"])
 def edit_shop(id):
 
     conn = get_connection()
