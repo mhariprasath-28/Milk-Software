@@ -285,7 +285,7 @@ SELECT
     e.shop_id,
     STRING_AGG(
         p.product_name || ' - ' ||
-        e.liter::text || 'L - ₹' ||
+        e.liter::text || 'L - Rs' ||
         e.total_amount::text,
         '<br>'
     ) AS products,
