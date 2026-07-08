@@ -660,18 +660,25 @@ def shop_report():
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT
-        s.shop_name,
-        COALESCE(SUM(e.total_amount),0),
-        COALESCE(SUM(e.paid_amount),0),
-        COALESCE(SUM(e.balance_amount),0)
-    FROM shops s
-    LEFT JOIN entries e
-        ON s.id = e.shop_id
-    GROUP BY s.shop_name
-    ORDER BY s.shop_name
-    """)
-
+SELECT
+    s.shop_name,
+    COALESCE(SUM(e.total_amount),0) AS total_collection,
+    COALESCE(SUM(e.paid_amount),0) AS total_paid,
+    COALESCE((
+        SELECT SUM(p.opening_balance)
+        FROM payment_entries p
+        WHERE p.shop_id = s.id
+    ),0)
+    +
+    COALESCE(SUM(e.total_amount),0)
+    -
+    COALESCE(SUM(e.paid_amount),0) AS balance
+FROM shops s
+LEFT JOIN entries e
+    ON s.id = e.shop_id
+GROUP BY s.id, s.shop_name
+ORDER BY s.shop_name
+""")
     reports = cursor.fetchall()
 
     conn.close()
