@@ -1,10 +1,10 @@
 from re import search
-
 from flask import Flask, render_template, request, redirect, send_file, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import date
 import os
 import pandas as pd
+
 from flask import Flask, render_template, request, redirect
 from datetime import date
 import sqlite3
@@ -37,48 +37,58 @@ from reportlab.lib.pagesizes import A4, landscape
 
 app = Flask(__name__)
 app = Flask(__name__)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
 
 # Create table
 conn = sqlite3.connect("milk.db")
 cursor = conn.cursor()
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS shops(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    shop_name TEXT NOT NULL
-)
-""")
+class Shop(db.Model):
+    __tablename__ = "shops"
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS products(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    product_name TEXT NOT NULL,
-    rate REAL NOT NULL
-)
-""")
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS entries(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    group_id TEXT,
-    entry_date TEXT,
-    shop_id INTEGER,
-    product_id INTEGER,
-    liter REAL,
-    rate REAL,
-    total_amount REAL,
-    paid_amount REAL,
-    balance_amount REAL
-)
-""")
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS payment_entries(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    payment_date TEXT,
-    shop_id INTEGER,
-    opening_balance REAL,
-    remarks TEXT
-)
-""")
+    id = db.Column(db.Integer, primary_key=True)
+    shop_name = db.Column(db.String(200), nullable=False)
+
+
+class Product(db.Model):
+    __tablename__ = "products"
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_name = db.Column(db.String(200), nullable=False)
+    rate = db.Column(db.Float, nullable=False)
+
+
+class Entry(db.Model):
+    __tablename__ = "entries"
+
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.String(100))
+    entry_date = db.Column(db.String(20))
+    shop_id = db.Column(db.Integer)
+    product_id = db.Column(db.Integer)
+    liter = db.Column(db.Float)
+    rate = db.Column(db.Float)
+    total_amount = db.Column(db.Float)
+    paid_amount = db.Column(db.Float)
+    balance_amount = db.Column(db.Float)
+
+
+class PaymentEntry(db.Model):
+    __tablename__ = "payment_entries"
+
+    id = db.Column(db.Integer, primary_key=True)
+    payment_date = db.Column(db.String(20))
+    shop_id = db.Column(db.Integer)
+    opening_balance = db.Column(db.Float)
+    remarks = db.Column(db.String(500))
 conn = sqlite3.connect("milk.db")
 cursor = conn.cursor()
 
@@ -1329,4 +1339,6 @@ def get_old_balance(shop_id):
         "balance": balance
     })
 if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
