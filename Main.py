@@ -253,28 +253,29 @@ ORDER BY shop_name
 
     # Entry Report
     cursor.execute("""
-    SELECT
-        STRING_AGG(DISTINCT e.group_id, ',') as group_ids,
-        e.entry_date,
-        s.shop_name,
-        e.shop_id,
-        STRING_AGG(
-            p.product_name || ' - ' ||
-            e.liter::text || 'L - ₹' ||
-            e.total_amount::text,
-            '<br>'
-        )
-        ) as products,
-        SUM(e.total_amount) as total,
-        SUM(e.paid_amount) as paid,
-        0 as balance
-    FROM entries e
-    JOIN shops s ON e.shop_id = s.id
-    JOIN products p ON e.product_id = p.id
-    GROUP BY e.shop_id, e.entry_date
-    ORDER BY e.entry_date ASC
-    """)
-
+SELECT
+    STRING_AGG(DISTINCT e.group_id::text, ',') AS group_ids,
+    e.entry_date,
+    s.shop_name,
+    e.shop_id,
+    STRING_AGG(
+        p.product_name || ' - ' ||
+        e.liter::text || 'L - ₹' ||
+        e.total_amount::text,
+        '<br>'
+    ) AS products,
+    SUM(e.total_amount) AS total,
+    SUM(e.paid_amount) AS paid,
+    0 AS balance
+FROM entries e
+JOIN shops s ON e.shop_id = s.id
+JOIN products p ON e.product_id = p.id
+GROUP BY
+    e.entry_date,
+    s.shop_name,
+    e.shop_id
+ORDER BY e.entry_date ASC
+""")
     entries = cursor.fetchall()
     # entries are fetched ORDER BY entry_date DESC — sort oldest first to run the balance forward
     entries_sorted = entries
