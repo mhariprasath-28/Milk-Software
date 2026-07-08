@@ -14,7 +14,7 @@
         type="date"
         name="entry_date"
         class="form-control"
-        value="{{ rows[0][1] }}"
+        value="{{ rows[0][2] }}"
         required>
 
     <br>
@@ -24,7 +24,7 @@
 
         {% for shop in shops %}
         <option value="{{ shop[0] }}"
-            {% if shop[0] == rows[0][2] %}
+            {% if shop[0] == rows[0][3] %}
             selected
             {% endif %}>
             {{ shop[1] }}
@@ -59,7 +59,7 @@
                     {% for product in products %}
                     <option value="{{ product[0] }}"
                             data-rate="{{ product[2] }}"
-                            {% if product[0] == row[3] %}
+                            {% if product[0] == row[4] %}
                             selected
                             {% endif %}>
                         {{ product[1] }}
@@ -78,7 +78,7 @@
                        step="0.01"
                        name="liter[]"
                        class="form-control liter"
-                       value="{{ row[4] }}"
+                       value="{{ row[5] }}"
                        >
 
             </div>
@@ -90,7 +90,7 @@
                 <input type="number"
                        name="rate[]"
                        class="form-control rate"
-                       value="{{ row[5] }}">
+                       value="{{ row[6] }}">
 
             </div>
 
@@ -101,7 +101,7 @@
                 <input type="number"
                        name="total[]"
                        class="form-control total"
-                       value="{{ row[6] }}"
+                       value="{{ row[7] }}"
                        readonly>
 
             </div>
@@ -135,7 +135,7 @@
                    id="paid"
                    name="paid"
                    class="form-control"
-                   value="{{ rows[0][7] }}">
+                   value="{{ rows[0][8] }}">
 
         </div>
 
@@ -147,7 +147,7 @@
                    id="balance"
                    name="balance"
                    class="form-control"
-                   value="{{ rows[0][8] }}"
+                   value="{{ rows[0][9] }}"
                    readonly>
 
         </div>
