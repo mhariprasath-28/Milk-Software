@@ -155,49 +155,74 @@ def entry():
         liters = request.form.getlist("liter[]")
         rates = request.form.getlist("rate[]")
         totals = request.form.getlist("total[]")
-        old_balance = 0
+
         print("PRODUCTS =", product_ids)
         print("LITERS =", liters)
         print("RATES =", rates)
         print("TOTALS =", totals)
-        today = date.today().strftime("%Y-%m-%d")
+
         import uuid
         group_id = str(uuid.uuid4())
-        paid = request.form["paid"]
-        balance = request.form["balance"]
 
+        def to_float(v, default=0.0):
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return default
+
+        def to_int(v):
+            try:
+                return int(v)
+            except (TypeError, ValueError):
+                return None
+
+        paid = to_float(request.form.get("paid"))
+        balance = to_float(request.form.get("balance"))
+
+        rows_to_insert = []
         for i in range(len(product_ids)):
-            cursor.execute("""
-        INSERT INTO entries
-(
-    group_id,
-    entry_date,
-    shop_id,
-    product_id,
-    liter,
-    rate,
-    total_amount,
-    paid_amount,
-    balance_amount
-)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """,
-    (
-    group_id,
-    entry_date,
-    shop_id,
-    product_ids[i],
-    liters[i],
-    rates[i],
-    totals[i],
-    paid if i == 0 else 0,
-    balance if i == 0 else 0
-))
+            pid = to_int(product_ids[i])
+            liter = to_float(liters[i] if i < len(liters) else None)
+            rate = to_float(rates[i] if i < len(rates) else None)
+            total = to_float(totals[i] if i < len(totals) else None)
 
-        conn.commit()
+            if pid is None or liter == 0:
+                # skip incomplete/blank rows instead of crashing
+                continue
+
+            rows_to_insert.append((
+                group_id,
+                entry_date,
+                shop_id,
+                pid,
+                liter,
+                rate,
+                total,
+                paid if len(rows_to_insert) == 0 else 0,
+                balance if len(rows_to_insert) == 0 else 0
+            ))
+
+        if not rows_to_insert:
+            conn.close()
+            return "No valid product rows submitted. Please fill in Product, Liter and Rate.", 400
+
+        try:
+            cursor.executemany("""
+                INSERT INTO entries
+                (group_id, entry_date, shop_id, product_id, liter, rate, total_amount, paid_amount, balance_amount)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, rows_to_insert)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print("DB ERROR:", e)
+            return f"Error saving entry: {e}", 500
+        finally:
+            conn.close()
 
         return redirect("/entry")
 
+    # ... rest of GET branch unchanged ...
     # Shop List
     cursor.execute("SELECT * FROM shops")
     selected_shop = request.args.get("shop_id")
