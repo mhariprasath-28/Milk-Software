@@ -271,9 +271,17 @@ ORDER BY shop_name
     total_paid = cursor.fetchone()[0]
 
     cursor.execute("""
-    SELECT COALESCE(SUM(balance_amount),0)
-    FROM entries
-    """)
+SELECT
+(
+    SELECT COALESCE(SUM(opening_balance),0)
+    FROM payment_entries
+)
++
+COALESCE(SUM(total_amount),0)
+-
+COALESCE(SUM(paid_amount),0)
+FROM entries
+""")
     total_balance = cursor.fetchone()[0]
 
     # Entry Report
@@ -285,7 +293,7 @@ SELECT
     e.shop_id,
     STRING_AGG(
         p.product_name || ' - ' ||
-        e.liter::text || 'L - Rs' ||
+        e.liter::text || 'L - Rs.' ||
         e.total_amount::text,
         '<br>'
     ) AS products,
@@ -411,7 +419,7 @@ def home():
     total_paid = cursor.fetchone()[0]
 
     cursor.execute(f"""
-        SELECT COALESCE(SUM(balance_amount),0)
+        SELECT COALESCE(SUM(total_amount),0) - COALESCE(SUM(paid_amount),0)
         FROM entries
         {where_clause}
     """, params)
@@ -696,7 +704,15 @@ def balance_report():
     cursor.execute("""
     SELECT
         s.shop_name,
-        COALESCE(SUM(e.balance_amount),0) AS balance
+       COALESCE((
+    SELECT SUM(p.opening_balance)
+    FROM payment_entries p
+    WHERE p.shop_id=s.id
+),0)
++
+COALESCE(SUM(e.total_amount),0)
+-
+COALESCE(SUM(e.paid_amount),0) AS balance
     FROM shops s
     LEFT JOIN entries e
         ON s.id = e.shop_id
@@ -784,7 +800,7 @@ def daily_summary():
         entry_date,
         SUM(total_amount),
         SUM(paid_amount),
-        SUM(balance_amount)
+        SUM(total_amount)-SUM(paid_amount)
     FROM entries
     GROUP BY entry_date
     ORDER BY entry_date DESC
@@ -908,10 +924,12 @@ def export_pdf():
 
     cursor.execute("""
     SELECT
-        COALESCE(SUM(total_amount),0),
-        COALESCE(SUM(paid_amount),0),
-        COALESCE(SUM(balance_amount),0)
-    FROM entries
+COALESCE(SUM(total_amount),0),
+COALESCE(SUM(paid_amount),0),
+COALESCE(SUM(total_amount),0)
+-
+COALESCE(SUM(paid_amount),0)
+FROM entries
     """)
 
     totals = cursor.fetchone()
