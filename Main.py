@@ -1,22 +1,15 @@
 from re import search
-from flask import Flask, render_template, request, redirect, send_file, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from datetime import date
-import os
-import pandas as pd
+
 
 from flask import Flask, render_template, request, redirect
 from datetime import date
-import sqlite3
+from database import get_connection
 import pandas as pd
 
 from flask import send_file
-from flask import send_file
 from flask import Flask, render_template, request, redirect, send_file
 from datetime import date
-import sqlite3
 import pandas as pd
-from flask import send_file
 from reportlab.platypus import *
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -36,106 +29,71 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4, landscape
 
 app = Flask(__name__)
-app = Flask(__name__)
-DATABASE_URL = os.environ.get("DATABASE_URL")
 
-if DATABASE_URL:
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-db = SQLAlchemy(app)
 
 # Create table
-conn = sqlite3.connect("milk.db")
+conn = get_connection()
 cursor = conn.cursor()
 
-class Shop(db.Model):
-    __tablename__ = "shops"
-
-    id = db.Column(db.Integer, primary_key=True)
-    shop_name = db.Column(db.String(200), nullable=False)
 
 
-class Product(db.Model):
-    __tablename__ = "products"
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS shops(
+    id SERIAL PRIMARY KEY,
+    shop_name VARCHAR(200) NOT NULL
+)
+""")
 
-    id = db.Column(db.Integer, primary_key=True)
-    product_name = db.Column(db.String(200), nullable=False)
-    rate = db.Column(db.Float, nullable=False)
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS products(
+    id SERIAL PRIMARY KEY,
+    product_name VARCHAR(200) NOT NULL,
+    rate DOUBLE PRECISION NOT NULL
+)
+""")
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS entries(
+    id SERIAL PRIMARY KEY,
+    group_id VARCHAR(100),
+    entry_date DATE,
+    shop_id INTEGER REFERENCES shops(id),
+    product_id INTEGER REFERENCES products(id),
+    liter DOUBLE PRECISION,
+    rate DOUBLE PRECISION,
+    total_amount DOUBLE PRECISION,
+    paid_amount DOUBLE PRECISION,
+    balance_amount DOUBLE PRECISION
+)
+""")
 
-class Entry(db.Model):
-    __tablename__ = "entries"
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS payment_entries(
+    id SERIAL PRIMARY KEY,
+    payment_date DATE,
+    shop_id INTEGER REFERENCES shops(id),
+    opening_balance DOUBLE PRECISION,
+    remarks TEXT
+)
+""")
 
-    id = db.Column(db.Integer, primary_key=True)
-    group_id = db.Column(db.String(100))
-    entry_date = db.Column(db.String(20))
-    shop_id = db.Column(db.Integer)
-    product_id = db.Column(db.Integer)
-    liter = db.Column(db.Float)
-    rate = db.Column(db.Float)
-    total_amount = db.Column(db.Float)
-    paid_amount = db.Column(db.Float)
-    balance_amount = db.Column(db.Float)
-
-
-class PaymentEntry(db.Model):
-    __tablename__ = "payment_entries"
-
-    id = db.Column(db.Integer, primary_key=True)
-    payment_date = db.Column(db.String(20))
-    shop_id = db.Column(db.Integer)
-    opening_balance = db.Column(db.Float)
-    remarks = db.Column(db.String(500))
-conn = sqlite3.connect("milk.db")
+conn.commit()
+conn.close()
+conn = get_connection()
 cursor = conn.cursor()
-
-for col_def in [
-    "ADD COLUMN shop_id INTEGER",
-    "ADD COLUMN opening_balance REAL",
-    "ADD COLUMN remarks TEXT"
-]:
-    try:
-        cursor.execute(f"ALTER TABLE payment_entries {col_def}")
-        conn.commit()
-    except sqlite3.OperationalError:
-        pass
-
-try:
-    cursor.execute("ALTER TABLE entries ADD COLUMN group_id TEXT")
-    conn.commit()
-except sqlite3.OperationalError:
-    pass
-
-conn.close()
-try:
-    cursor.execute("""
-    ALTER TABLE entries
-    ADD COLUMN group_id TEXT
-    """)
-    conn.commit()
-except:
-    pass
-
-conn.close()
-
-
 
 @app.route("/shops", methods=["GET", "POST"])
 def shops():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
-
     if request.method == "POST":
         
 
         shop_name = request.form["shop_name"]
 
         cursor.execute(
-            "INSERT INTO shops(shop_name) VALUES(?)",
+            "INSERT INTO shops(shop_name) VALUES(%s)",
             (shop_name,)
         )
 
@@ -158,7 +116,7 @@ def shops():
 @app.route("/products", methods=["GET", "POST"])
 def products():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -167,7 +125,7 @@ def products():
         rate = request.form["rate"]
 
         cursor.execute(
-            "INSERT INTO products(product_name, rate) VALUES(?, ?)",
+            "INSERT INTO products(product_name, rate) VALUES(%s, %s)",
             (product_name, rate)
         )
 
@@ -187,7 +145,7 @@ def products():
 @app.route("/entry", methods=["GET", "POST"])
 def entry():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -222,7 +180,7 @@ def entry():
     paid_amount,
     balance_amount
 )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """,
     (
     group_id,
@@ -254,18 +212,18 @@ ORDER BY shop_name
 
     if selected_shop:
         cursor.execute("""
-            SELECT IFNULL(SUM(opening_balance),0)
+            SELECT COALESCE(SUM(opening_balance),0)
             FROM payment_entries
-            WHERE shop_id=?
+            WHERE shop_id=%s
         """, (selected_shop,))
         payment_total = cursor.fetchone()[0]
 
         cursor.execute("""
             SELECT
-                IFNULL(SUM(total_amount),0),
-                IFNULL(SUM(paid_amount),0)
+                COALESCE(SUM(total_amount),0),
+                COALESCE(SUM(paid_amount),0)
             FROM entries
-            WHERE shop_id=?
+            WHERE shop_id=%s
         """, (selected_shop,))
         entries_total, entries_paid = cursor.fetchone()
 
@@ -276,19 +234,19 @@ ORDER BY shop_name
 
     # Dashboard Cards
     cursor.execute("""
-    SELECT IFNULL(SUM(total_amount),0)
+    SELECT COALESCE(SUM(total_amount),0)
     FROM entries
     """)
     total_collection = cursor.fetchone()[0]
 
     cursor.execute("""
-    SELECT IFNULL(SUM(paid_amount),0)
+    SELECT COALESCE(SUM(paid_amount),0)
     FROM entries
     """)
     total_paid = cursor.fetchone()[0]
 
     cursor.execute("""
-    SELECT IFNULL(SUM(balance_amount),0)
+    SELECT COALESCE(SUM(balance_amount),0)
     FROM entries
     """)
     total_balance = cursor.fetchone()[0]
@@ -296,15 +254,16 @@ ORDER BY shop_name
     # Entry Report
     cursor.execute("""
     SELECT
-        GROUP_CONCAT(DISTINCT e.group_id) as group_ids,
+        STRING_AGG(DISTINCT e.group_id, ',') as group_ids,
         e.entry_date,
         s.shop_name,
         e.shop_id,
-        GROUP_CONCAT(
+        STRING_AGG(
             p.product_name || ' - ' ||
-            e.liter || 'L - ₹' ||
-            e.total_amount,
+            e.liter::text || 'L - ₹' ||
+            e.total_amount::text,
             '<br>'
+        )
         ) as products,
         SUM(e.total_amount) as total,
         SUM(e.paid_amount) as paid,
@@ -327,9 +286,9 @@ ORDER BY shop_name
     running_balance = {}
     for sid in shop_ids:
         cursor.execute("""
-            SELECT IFNULL(SUM(opening_balance),0)
+            SELECT COALESCE(SUM(opening_balance),0)
             FROM payment_entries
-            WHERE shop_id=?
+            WHERE shop_id=%s
         """, (sid,))
         running_balance[sid] = cursor.fetchone()[0]
 
@@ -378,13 +337,13 @@ ORDER BY shop_name
 @app.route("/delete-entry/<group_ids>")
 def delete_entry(group_ids):
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     id_list = group_ids.split(",")
 
     cursor.executemany(
-        "DELETE FROM entries WHERE group_id = ?",
+        "DELETE FROM entries WHERE group_id = %s",
         [(gid,) for gid in id_list]
     )
 
@@ -395,7 +354,7 @@ def delete_entry(group_ids):
 @app.route("/")
 def home():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     from_date = request.args.get("from_date")
@@ -407,26 +366,26 @@ def home():
     if from_date and to_date:
         where_clause = """
         WHERE entry_date
-        BETWEEN ? AND ?
+        BETWEEN %s AND %s
         """
         params = [from_date, to_date]
 
     cursor.execute(f"""
-        SELECT IFNULL(SUM(total_amount),0)
+        SELECT COALESCE(SUM(total_amount),0)
         FROM entries
         {where_clause}
     """, params)
     total_collection = cursor.fetchone()[0]
 
     cursor.execute(f"""
-        SELECT IFNULL(SUM(paid_amount),0)
+        SELECT COALESCE(SUM(paid_amount),0)
         FROM entries
         {where_clause}
     """, params)
     total_paid = cursor.fetchone()[0]
 
     cursor.execute(f"""
-        SELECT IFNULL(SUM(balance_amount),0)
+        SELECT COALESCE(SUM(balance_amount),0)
         FROM entries
         {where_clause}
     """, params)
@@ -461,7 +420,7 @@ def home():
 @app.route("/edit-entry/<group_ids>", methods=["GET", "POST"])
 def edit_entry(group_ids):
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     id_list = group_ids.split(",")
@@ -480,7 +439,7 @@ def edit_entry(group_ids):
         balance = request.form["balance"]
 
         cursor.executemany(
-            "DELETE FROM entries WHERE group_id = ?",
+            "DELETE FROM entries WHERE group_id = %s",
             [(gid,) for gid in id_list]
         )
 
@@ -501,7 +460,7 @@ def edit_entry(group_ids):
                 paid_amount,
                 balance_amount
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 new_group_id,
@@ -520,7 +479,7 @@ def edit_entry(group_ids):
 
         return redirect("/entry")
 
-    placeholders = ",".join("?" for _ in id_list)
+    placeholders = ",".join("%s" for _ in id_list)
 
     cursor.execute(f"""
         SELECT *
@@ -535,19 +494,19 @@ def edit_entry(group_ids):
 
     if shop_id:
         cursor.execute("""
-            SELECT IFNULL(SUM(opening_balance),0)
+            SELECT COALESCE(SUM(opening_balance),0)
             FROM payment_entries
-            WHERE shop_id=?
+            WHERE shop_id=%s
         """, (shop_id,))
         payment_total = cursor.fetchone()[0]
 
-        exclude_placeholders = ",".join("?" for _ in id_list)
+        exclude_placeholders = ",".join("%s" for _ in id_list)
         cursor.execute(f"""
             SELECT
-                IFNULL(SUM(total_amount),0),
-                IFNULL(SUM(paid_amount),0)
+                COALESCE(SUM(total_amount),0),
+                COALESCE(SUM(paid_amount),0)
             FROM entries
-            WHERE shop_id=? AND group_id NOT IN ({exclude_placeholders})
+            WHERE shop_id=%s AND group_id NOT IN ({exclude_placeholders})
         """, [shop_id] + id_list)
         entries_total, entries_paid = cursor.fetchone()
 
@@ -572,7 +531,7 @@ def edit_entry(group_ids):
 @app.route("/edit-shop/<int:id>", methods=["GET","POST"])
 def edit_shop(id):
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -580,7 +539,7 @@ def edit_shop(id):
         shop_name = request.form["shop_name"]
 
         cursor.execute(
-            "UPDATE shops SET shop_name=? WHERE id=?",
+            "UPDATE shops SET shop_name=%s WHERE id=%s",
             (shop_name, id)
         )
 
@@ -590,7 +549,7 @@ def edit_shop(id):
         return redirect("/shops")
 
     cursor.execute(
-        "SELECT * FROM shops WHERE id=?",
+        "SELECT * FROM shops WHERE id=%s",
         (id,)
     )
 
@@ -605,11 +564,11 @@ def edit_shop(id):
 @app.route("/delete-shop/<int:id>")
 def delete_shop(id):
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
-        "DELETE FROM shops WHERE id=?",
+        "DELETE FROM shops WHERE id=%s",
         (id,)
     )
 
@@ -620,7 +579,7 @@ def delete_shop(id):
 @app.route("/edit-product/<int:id>", methods=["GET", "POST"])
 def edit_product(id):
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -630,9 +589,9 @@ def edit_product(id):
 
         cursor.execute("""
             UPDATE products
-            SET product_name=?,
-                rate=?
-            WHERE id=?
+            SET product_name=%s,
+                rate=%s
+            WHERE id=%s
         """, (product_name, rate, id))
 
         conn.commit()
@@ -641,7 +600,7 @@ def edit_product(id):
         return redirect("/products")
 
     cursor.execute(
-        "SELECT * FROM products WHERE id=?",
+        "SELECT * FROM products WHERE id=%s",
         (id,)
     )
 
@@ -656,11 +615,11 @@ def edit_product(id):
 @app.route("/delete-product/<int:id>")
 def delete_product(id):
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
-        "DELETE FROM products WHERE id=?",
+        "DELETE FROM products WHERE id=%s",
         (id,)
     )
 
@@ -671,15 +630,15 @@ def delete_product(id):
 @app.route("/shop-report")
 def shop_report():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
     SELECT
         s.shop_name,
-        IFNULL(SUM(e.total_amount),0),
-        IFNULL(SUM(e.paid_amount),0),
-        IFNULL(SUM(e.balance_amount),0)
+        COALESCE(SUM(e.total_amount),0),
+        COALESCE(SUM(e.paid_amount),0),
+        COALESCE(SUM(e.balance_amount),0)
     FROM shops s
     LEFT JOIN entries e
         ON s.id = e.shop_id
@@ -698,13 +657,13 @@ def shop_report():
 @app.route("/balance-report")
 def balance_report():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
     SELECT
         s.shop_name,
-        IFNULL(SUM(e.balance_amount),0) AS balance
+        COALESCE(SUM(e.balance_amount),0) AS balance
     FROM shops s
     LEFT JOIN entries e
         ON s.id = e.shop_id
@@ -724,7 +683,7 @@ def balance_report():
 @app.route("/export-excel")
 def export_excel():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
 
     query = """
     SELECT
@@ -758,14 +717,14 @@ def export_excel():
 @app.route("/product-report")
 def product_report():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
     SELECT
         p.product_name,
-        IFNULL(SUM(e.liter),0),
-        IFNULL(SUM(e.total_amount),0)
+        COALESCE(SUM(e.liter),0),
+        COALESCE(SUM(e.total_amount),0)
     FROM products p
     LEFT JOIN entries e
         ON p.id = e.product_id
@@ -784,7 +743,7 @@ def product_report():
 @app.route("/daily-summary")
 def daily_summary():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -809,7 +768,7 @@ def daily_summary():
 @app.route("/outstanding-report")
 def outstanding_report():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     from_date = request.args.get("from_date")
@@ -821,8 +780,8 @@ def outstanding_report():
     SELECT
         s.id,
         s.shop_name,
-        IFNULL(SUM(e.total_amount),0),
-        IFNULL(SUM(e.paid_amount),0)
+        COALESCE(SUM(e.total_amount),0),
+        COALESCE(SUM(e.paid_amount),0)
     FROM shops s
     LEFT JOIN entries e
         ON s.id = e.shop_id
@@ -834,19 +793,19 @@ def outstanding_report():
     params = []
 
     if from_date:
-        query += " AND e.entry_date >= ? "
+        query += " AND e.entry_date >= %s "
         params.append(from_date)
 
     if to_date:
-        query += " AND e.entry_date <= ? "
+        query += " AND e.entry_date <= %s "
         params.append(to_date)
 
     if shop_id:
-        query += " AND s.id = ? "
+        query += " AND s.id = %s "
         params.append(shop_id)
 
     if product_id:
-        query += " AND p.id = ? "
+        query += " AND p.id = %s "
         params.append(product_id)
 
     query += """
@@ -863,9 +822,9 @@ def outstanding_report():
     for sid, sname, total, paid in raw_reports:
 
         cursor.execute("""
-            SELECT IFNULL(SUM(opening_balance),0)
+            SELECT COALESCE(SUM(opening_balance),0)
             FROM payment_entries
-            WHERE shop_id=?
+            WHERE shop_id=%s
         """, (sid,))
         payment_total = cursor.fetchone()[0]
 
@@ -894,7 +853,7 @@ def outstanding_report():
 @app.route("/export-pdf")
 def export_pdf():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -916,9 +875,9 @@ def export_pdf():
 
     cursor.execute("""
     SELECT
-        IFNULL(SUM(total_amount),0),
-        IFNULL(SUM(paid_amount),0),
-        IFNULL(SUM(balance_amount),0)
+        COALESCE(SUM(total_amount),0),
+        COALESCE(SUM(paid_amount),0),
+        COALESCE(SUM(balance_amount),0)
     FROM entries
     """)
 
@@ -1013,12 +972,10 @@ def export_pdf():
 @app.route("/clear-data")
 def clear_data():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("DELETE FROM entries")
-    cursor.execute("DELETE FROM sqlite_sequence WHERE name='entries'")
-
     conn.commit()
     conn.close()
 
@@ -1026,7 +983,7 @@ def clear_data():
 @app.route("/payment-entry", methods=["GET", "POST"])
 def payment_entry():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -1044,7 +1001,7 @@ def payment_entry():
                 opening_balance,
                 remarks
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         """, (
             payment_date,
             shop_id,
@@ -1075,15 +1032,15 @@ def payment_entry():
     params = []
 
     if from_date:
-        query += " AND p.payment_date >= ? "
+        query += " AND p.payment_date >= %s "
         params.append(from_date)
 
     if to_date:
-        query += " AND p.payment_date <= ? "
+        query += " AND p.payment_date <= %s "
         params.append(to_date)
 
     if search:
-        query += " AND s.shop_name LIKE ? "
+        query += " AND s.shop_name LIKE %s "
         params.append(f"%{search}%")
 
     query += " ORDER BY p.payment_date DESC "
@@ -1098,18 +1055,18 @@ def payment_entry():
     shop_balances = []
     for sid, sname in shops:
         cursor.execute("""
-            SELECT IFNULL(SUM(opening_balance),0)
+            SELECT COALESCE(SUM(opening_balance),0)
             FROM payment_entries
-            WHERE shop_id=?
+            WHERE shop_id=%s
         """, (sid,))
         payment_total = cursor.fetchone()[0]
 
         cursor.execute("""
             SELECT
-                IFNULL(SUM(total_amount),0),
-                IFNULL(SUM(paid_amount),0)
+                COALESCE(SUM(total_amount),0),
+                COALESCE(SUM(paid_amount),0)
             FROM entries
-            WHERE shop_id=?
+            WHERE shop_id=%s
         """, (sid,))
         entries_total, entries_paid = cursor.fetchone()
 
@@ -1134,7 +1091,7 @@ def payment_entry():
 @app.route("/edit-payment/<int:id>", methods=["GET", "POST"])
 def edit_payment(id):
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     if request.method == "POST":
@@ -1146,11 +1103,11 @@ def edit_payment(id):
 
         cursor.execute("""
             UPDATE payment_entries
-            SET payment_date=?,
-                shop_id=?,
-                opening_balance=?,
-                remarks=?
-            WHERE id=?
+            SET payment_date=%s,
+                shop_id=%s,
+                opening_balance=%s,
+                remarks=%s
+            WHERE id=%s
         """, (
             payment_date,
             shop_id,
@@ -1165,7 +1122,7 @@ def edit_payment(id):
         return redirect("/payment-entry")
 
     cursor.execute(
-        "SELECT * FROM payment_entries WHERE id=?",
+        "SELECT * FROM payment_entries WHERE id=%s",
         (id,)
     )
 
@@ -1189,11 +1146,11 @@ def edit_payment(id):
 @app.route("/delete-payment/<int:id>")
 def delete_payment(id):
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
-        "DELETE FROM payment_entries WHERE id=?",
+        "DELETE FROM payment_entries WHERE id=%s",
         (id,)
     )
 
@@ -1204,7 +1161,7 @@ def delete_payment(id):
 @app.route("/export-payment-excel")
 def export_payment_excel():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
 
     query = """
     SELECT
@@ -1234,7 +1191,7 @@ def export_payment_excel():
 @app.route("/export-payment-pdf")
 def export_payment_pdf():
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -1312,22 +1269,22 @@ def export_payment_pdf():
 @app.route("/get-old-balance/<int:shop_id>")
 def get_old_balance(shop_id):
 
-    conn = sqlite3.connect("milk.db")
+    conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT IFNULL(SUM(opening_balance),0)
+        SELECT COALESCE(SUM(opening_balance),0)
         FROM payment_entries
-        WHERE shop_id=?
+        WHERE shop_id=%s
     """, (shop_id,))
     payment_total = cursor.fetchone()[0]
 
     cursor.execute("""
         SELECT
-            IFNULL(SUM(total_amount),0),
-            IFNULL(SUM(paid_amount),0)
+            COALESCE(SUM(total_amount),0),
+            COALESCE(SUM(paid_amount),0)
         FROM entries
-        WHERE shop_id=?
+        WHERE shop_id=%s
     """, (shop_id,))
     entries_total, entries_paid = cursor.fetchone()
 
@@ -1339,6 +1296,4 @@ def get_old_balance(shop_id):
         "balance": balance
     })
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
