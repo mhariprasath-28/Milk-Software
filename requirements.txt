@@ -3,3 +3,6 @@ gunicorn
 pandas
 openpyxl
 reportlab
+psycopg2-binary
+SQLAlchemy
+Flask-SQLAlchemy
