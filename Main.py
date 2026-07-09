@@ -81,6 +81,11 @@ CREATE TABLE IF NOT EXISTS payment_entries(
 conn.commit()
 conn.close()
 conn = get_connection()
+cursor.execute("""
+ALTER TABLE payment_entries
+ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION DEFAULT 0;
+""")
+conn.commit()
 cursor = conn.cursor()
 
 @app.route("/shops", methods=["GET", "POST"])
