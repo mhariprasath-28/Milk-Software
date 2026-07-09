@@ -59,9 +59,7 @@ CREATE TABLE IF NOT EXISTS entries(
     product_id INTEGER REFERENCES products(id),
     liter DOUBLE PRECISION,
     rate DOUBLE PRECISION,
-    total_amount DOUBLE PRECISION,
-    paid_amount DOUBLE PRECISION,
-    balance_amount DOUBLE PRECISION
+    total_amount DOUBLE PRECISION
 )
 """)
 
@@ -180,9 +178,6 @@ def entry():
             except (TypeError, ValueError):
                 return None
 
-        paid = to_float(request.form.get("paid"))
-        balance = to_float(request.form.get("balance"))
-
         rows_to_insert = []
         for i in range(len(product_ids)):
             pid = to_int(product_ids[i])
@@ -202,8 +197,6 @@ def entry():
                 liter,
                 rate,
                 total,
-                paid if len(rows_to_insert) == 0 else 0,
-                balance if len(rows_to_insert) == 0 else 0
             ))
 
         if not rows_to_insert:
@@ -213,8 +206,8 @@ def entry():
         try:
             cursor.executemany("""
                 INSERT INTO entries
-                (group_id, entry_date, shop_id, product_id, liter, rate, total_amount, paid_amount, balance_amount)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (group_id, entry_date, shop_id, product_id, liter, rate, total_amount)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, rows_to_insert)
             conn.commit()
         except Exception as e:
@@ -250,15 +243,13 @@ ORDER BY shop_name
         payment_total ,amount_total= cursor.fetchone()
 
         cursor.execute("""
-            SELECT
-                COALESCE(SUM(total_amount),0),
-                COALESCE(SUM(paid_amount),0)
+            SELECT COALESCE(SUM(total_amount),0)
             FROM entries
             WHERE shop_id=%s
         """, (selected_shop,))
-        entries_total, entries_paid = cursor.fetchone()
+        entries_total = cursor.fetchone()[0]
 
-        old_balance = payment_total + entries_total - entries_paid - amount_total
+        old_balance = payment_total + entries_total - amount_total
     # Product List
     cursor.execute("SELECT * FROM products")
     products = cursor.fetchall()
@@ -269,11 +260,10 @@ ORDER BY shop_name
     FROM entries
     """)
     total_collection = cursor.fetchone()[0]
-
+    
     cursor.execute("""
-    SELECT 
-            COALESCE((SELECT SUM(paid_amount) FROM entries),0)+ 
-    COALESCE((SELECT SUM(amount) FROM payment_entries),0)
+    SELECT COALESCE(SUM(amount),0) 
+                   FROM payment_entries
     """)
     total_paid = cursor.fetchone()[0]
 
@@ -285,8 +275,6 @@ SELECT
 )
 +
 COALESCE(SUM(total_amount),0)
--
-COALESCE(SUM(paid_amount),0)
 FROM entries
 """)
     total_balance = cursor.fetchone()[0]
@@ -319,7 +307,6 @@ FROM entries
             '<br>'
         ) AS products,
         SUM(e.total_amount) AS total,
-        SUM(e.paid_amount) AS paid,
         0 AS balance
     FROM entries e
     JOIN shops s ON e.shop_id = s.id
@@ -346,11 +333,13 @@ FROM entries
     running_balance = {}
     for sid in shop_ids:
         cursor.execute("""
-            SELECT COALESCE(SUM(opening_balance),0)
+            SELECT COALESCE(SUM(opening_balance),0),
+                       COALESCE(SUM(amount),0)
             FROM payment_entries
             WHERE shop_id=%s
         """, (sid,))
-        running_balance[sid] = cursor.fetchone()[0]
+        opening_balance, received_amount = cursor.fetchone()
+        running_balance[sid] = opening_balance - received_amount
 
     new_entries = []
 
@@ -358,12 +347,10 @@ FROM entries
 
         shop_id = row[3]
         total = float(row[5] or 0)
-        paid = float(row[6] or 0)
+        
 
         old_bal = running_balance.get(shop_id, 0)
-
-        running_balance[shop_id] = old_bal + total - paid
-
+        running_balance[shop_id] = old_bal + total
         temp = list(row)
         temp[7] = running_balance[shop_id]
         temp.append(old_bal)   # index 8 = old balance before this entry
@@ -439,27 +426,46 @@ def home():
         {where_clause}
     """, params)
     total_collection = cursor.fetchone()[0]
-    cursor.execute(f"""
-        SELECT COALESCE(SUM(paid_amount),0)
-        FROM entries
-        {where_clause}
-    """, params)
-    entries_paid = cursor.fetchone()[0]
+   
+    payment_where = ""
+    payment_params = []
 
-    cursor.execute("""
+    if from_date and to_date:
+        payment_where = """
+    WHERE payment_date BETWEEN %s AND %s
+    """
+    payment_params = [from_date, to_date]
+
+    cursor.execute(f"""
         SELECT COALESCE(SUM(amount),0)
         FROM payment_entries
-    """)
-    payments_amount = cursor.fetchone()[0]
-    total_paid = entries_paid + payments_amount
+            {payment_where}
+    """, payment_params)
+    total_paid = cursor.fetchone()[0]
 
-    cursor.execute(f"""
-        SELECT COALESCE(SUM(total_amount),0) - COALESCE(SUM(paid_amount),0)
+    cursor.execute("""
+    SELECT
+    (
+        COALESCE(
+            (SELECT SUM(opening_balance)
+            FROM payment_entries),
+        0)
+    )
+    +
+    COALESCE(
+        (SELECT SUM(total_amount)
         FROM entries
-        {where_clause}
-    """, params)
-    total_balance = cursor.fetchone()[0]
+        WHERE entry_date <= %s),
+    0)
+    -
+    COALESCE(
+        (SELECT SUM(amount)
+        FROM payment_entries
+        WHERE payment_date <= %s),
+    0)
+    """, (to_date, to_date))
 
+    total_balance = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM shops")
     total_shops = cursor.fetchone()[0]
 
@@ -516,8 +522,6 @@ def edit_entry(group_ids):
             except (TypeError, ValueError):
                 return None
 
-        paid = to_float(request.form.get("paid"))
-        balance = to_float(request.form.get("balance"))
 
         import uuid
         new_group_id = str(uuid.uuid4())
@@ -540,8 +544,6 @@ def edit_entry(group_ids):
                 liter,
                 rate,
                 total,
-                paid if len(rows_to_insert) == 0 else 0,
-                balance if len(rows_to_insert) == 0 else 0
             ))
 
         if not rows_to_insert:
@@ -557,8 +559,8 @@ def edit_entry(group_ids):
 
             cursor.executemany("""
                 INSERT INTO entries
-                (group_id, entry_date, shop_id, product_id, liter, rate, total_amount, paid_amount, balance_amount)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                (group_id, entry_date, shop_id, product_id, liter, rate, total_amount)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """, rows_to_insert)
 
             conn.commit()
@@ -586,23 +588,22 @@ def edit_entry(group_ids):
 
     if shop_id:
         cursor.execute("""
-            SELECT COALESCE(SUM(opening_balance),0)
+            SELECT COALESCE(SUM(opening_balance),0),
+                        COALESCE(SUM(amount),0)
             FROM payment_entries
             WHERE shop_id=%s
         """, (shop_id,))
-        payment_total = cursor.fetchone()[0]
+        payment_total, amount_total = cursor.fetchone()
 
         exclude_placeholders = ",".join("%s" for _ in id_list)
         cursor.execute(f"""
             SELECT
-                COALESCE(SUM(total_amount),0),
-                COALESCE(SUM(paid_amount),0)
-            FROM entries
+                COALESCE(SUM(total_amount),0)
+                        FROM entries
             WHERE shop_id=%s AND group_id NOT IN ({exclude_placeholders})
         """, [shop_id] + id_list)
-        entries_total, entries_paid = cursor.fetchone()
-
-        old_balance = payment_total + entries_total - entries_paid
+        entries_total = cursor.fetchone()[0]
+        old_balance = payment_total + entries_total - amount_total
 
     cursor.execute("SELECT * FROM shops")
     shops = cursor.fetchall()
@@ -741,17 +742,13 @@ def shop_report():
     cursor.execute(f"""
 SELECT
     s.shop_name,
-    COALESCE(SUM(e.total_amount),0) AS total_collection,
-    COALESCE(SUM(e.paid_amount),0) AS total_paid,
     COALESCE((
-        SELECT SUM(p.opening_balance)
-        FROM payment_entries p
-        WHERE p.shop_id = s.id
-    ),0)
-    +
+SELECT SUM(opening_balance)-SUM(amount)
+FROM payment_entries p
+WHERE p.shop_id=s.id
+),0)
++
     COALESCE(SUM(e.total_amount),0)
-    -
-    COALESCE(SUM(e.paid_amount),0) AS balance
 FROM shops s
 LEFT JOIN entries e
     ON s.id = e.shop_id
@@ -792,20 +789,20 @@ def balance_report():
     SELECT
         s.shop_name,
        COALESCE((
-    SELECT SUM(p.opening_balance)
+    SELECT SUM(p.opening_balance)-sum(p.amount)
     FROM payment_entries p
     WHERE p.shop_id=s.id
 ),0)
 +
 COALESCE(SUM(e.total_amount),0)
--
-COALESCE(SUM(e.paid_amount),0) AS balance
+                   ) As balance
+
     FROM shops s
     LEFT JOIN entries e
         ON s.id = e.shop_id
                    {where_clause}
     GROUP BY s.shop_name
-    HAVING SUM(e.total_amount) IS NOT NULL OR SUM(e.paid_amount) IS NOT NULL
+    HAVING SUM(e.total_amount) IS NOT NULL
     ORDER BY balance DESC
     """, params)
 
@@ -830,9 +827,7 @@ def export_excel():
         s.shop_name,
         p.product_name,
         e.liter,
-        e.total_amount,
-        e.paid_amount,
-        e.balance_amount
+        e.total_amount
     FROM entries e
     JOIN shops s ON e.shop_id = s.id
     JOIN products p ON e.product_id = p.id
@@ -912,9 +907,7 @@ def daily_summary():
     cursor.execute("""
     SELECT
         entry_date,
-        SUM(total_amount),
-        SUM(paid_amount),
-        SUM(total_amount)-SUM(paid_amount)
+        SUM(total_amount)
     FROM entries
     GROUP BY entry_date
     ORDER BY entry_date DESC
@@ -947,8 +940,7 @@ def outstanding_report():
     SELECT
         s.id,
         s.shop_name,
-        COALESCE(SUM(e.total_amount),0),
-        COALESCE(SUM(e.paid_amount),0)
+        COALESCE(SUM(e.total_amount),0)
     FROM shops s
     LEFT JOIN entries e
         ON s.id = e.shop_id
@@ -986,7 +978,7 @@ def outstanding_report():
     reports = []
     old_balance = 0
 
-    for sid, sname, total, paid in raw_reports:
+    for sid, sname, total in raw_reports:
 
         cursor.execute("""
             SELECT 
@@ -998,12 +990,12 @@ def outstanding_report():
         """, (sid,))
         payment_total ,amount_total= cursor.fetchone()
 
-        balance = payment_total + (total or 0) - (paid or 0)- amount_total
+        balance = payment_total + total - amount_total
 
-        reports.append((sname, total, paid, balance))
+        reports.append((sname, total, balance))
 
         if shop_id and int(shop_id) == sid:
-            old_balance = payment_total-amount_total + (total or 0) - (paid or 0)
+            old_balance = payment_total-amount_total + (total or 0)
 
     cursor.execute("SELECT * FROM shops")
     shops = cursor.fetchall()
@@ -1036,9 +1028,7 @@ def export_pdf():
         s.shop_name,
         p.product_name,
         e.liter,
-        e.total_amount,
-        e.paid_amount,
-        e.balance_amount
+        e.total_amount
     FROM entries e
     JOIN shops s ON e.shop_id = s.id
     JOIN products p ON e.product_id = p.id
@@ -1049,15 +1039,12 @@ def export_pdf():
 
     cursor.execute("""
     SELECT
-COALESCE(SUM(total_amount),0),
-COALESCE(SUM(paid_amount),0),
 COALESCE(SUM(total_amount),0)
--
-COALESCE(SUM(paid_amount),0)
+
 FROM entries
     """)
 
-    totals = cursor.fetchone()
+    totals = cursor.fetchone()[0]
 
     conn.close()
 
@@ -1092,8 +1079,6 @@ FROM entries
             "Product",
             "Liter",
             "Total",
-            "Paid",
-            "Balance"
         ]
     ]
 
@@ -1103,9 +1088,7 @@ FROM entries
             str(row[1]),
             str(row[2]),
             str(row[3]),
-            f"₹ {row[4]}",
-            f"₹ {row[5]}",
-            f"₹ {row[6]}"
+            f"₹ {row[4]}"
         ])
 
     data.append([
@@ -1113,9 +1096,8 @@ FROM entries
         "",
         "TOTAL",
         "",
-        f"₹ {totals[0]}",
-        f"₹ {totals[1]}",
-        f"₹ {totals[2]}"
+        f"₹ {totals}",
+        
     ])
 
     table = Table(data)
@@ -1248,15 +1230,13 @@ def payment_entry():
         payment_total, amount_total = cursor.fetchone()
 
         cursor.execute("""
-            SELECT
-                COALESCE(SUM(total_amount),0),
-                COALESCE(SUM(paid_amount),0)
+            SELECT COALESCE(SUM(total_amount),0)
             FROM entries
             WHERE shop_id=%s
         """, (sid,))
-        entries_total, entries_paid = cursor.fetchone()
+        entries_total = cursor.fetchone()[0]    
 
-        current_balance = (payment_total + entries_total - entries_paid - amount_total)
+        current_balance = (payment_total + entries_total - amount_total)
         shop_balances.append((sname, current_balance))
     # --- end live balance block ---
 
@@ -1356,12 +1336,14 @@ def export_payment_excel():
 
     query = """
     SELECT
-        payment_date,
-        shop_id,
-        opening_balance,
-        amount,
-        remarks
-    FROM payment_entries
+        p.payment_date,
+        s.shop_name,
+        p.opening_balance,
+        p.amount,
+        p.remarks
+    FROM payment_entries p
+    JOIN shops s
+    ON p.shop_id = s.id
     ORDER BY payment_date DESC
     """
 
@@ -1481,15 +1463,13 @@ def get_old_balance(shop_id):
     payment_total, amount_total = cursor.fetchone()
 
     cursor.execute("""
-        SELECT
-            COALESCE(SUM(total_amount),0),
-            COALESCE(SUM(paid_amount),0)
+        SELECT COALESCE(SUM(total_amount),0)
         FROM entries
         WHERE shop_id=%s
     """, (shop_id,))
-    entries_total, entries_paid = cursor.fetchone()
+    entries_total= cursor.fetchone()[0]
 
-    balance = payment_total + entries_total - entries_paid - amount_total
+    balance = payment_total + entries_total - amount_total
 
     conn.close()
 
