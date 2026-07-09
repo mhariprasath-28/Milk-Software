@@ -3,28 +3,8 @@
 {% block content %}
 
 <div class="container-fluid">
-
-<div class="card p-3 mb-3">
-    <h5>Current Shop Balances</h5>
-    <table class="table table-sm table-bordered">
-        <thead>
-            <tr>
-                <th>Shop</th>
-                <th>Current Balance</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for shop_name, balance in shop_balances %}
-            <tr>
-                <td>{{ shop_name }}</td>
-                <td class="{% if balance > 0 %}text-danger fw-bold{% endif %}">
-                    ₹ {{ balance }}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>  <h2>Payment Entry</h2>
+ 
+ <h2>Payment Entry</h2>
 
 <div class="card p-3">
 
@@ -32,51 +12,59 @@
 
         <div class="row">
 
-            <div class="col-md-3">
-                <label>Date</label>
-                <input type="date"
-                       name="payment_date"
-                       class="form-control"
-                       value="{{ today }}"
-                       required>
-            </div>
+    <div class="col-md-3">
+        <label>Date</label>
+        <input type="date"
+               name="payment_date"
+               class="form-control"
+               value="{{ today }}"
+               required>
+    </div>
 
-            <label>Shop Name</label>
-<select name="shop_id" class="form-control" required>
-    <option value="" selected disabled>-- Select Shop --</option>
-    {% for shop in shops %}
-    <option value="{{ shop[0] }}">
-        {{ shop[1] }}
-    </option>
-    {% endfor %}
-</select>
+    <div class="col-md-3">
+        <label>Shop Name</label>
+        <select name="shop_id"
+                class="form-control"
+                required>
+            <option value="" selected disabled>-- Select Shop --</option>
+
+            {% for shop in shops %}
+            <option value="{{ shop[0] }}">
+                {{ shop[1] }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="col-md-3">
+        <label>Opening Balance</label>
+        <input type="number"
+               name="opening_balance"
+               class="form-control">
+    </div>
+
+    <div class="col-md-3">
+        <label>Amount Received</label>
+        <input type="number"
+               name="amount"
+               class="form-control">
+    </div>
+
+</div>
 
 <br>
 
-<label>Opening Balance</label>
-<input type="number"
-       name="opening_balance"
-       class="form-control">
-        </div>
+<label>Remarks</label>
+<textarea
+    name="remarks"
+    class="form-control"
+    rows="2"></textarea>
 
-        <br>
-        <label>Amount Received</label>
-<input type="number"
-       name="amount"
-       class="form-control">
-       <br>
+<br>
 
-        <label>Remarks</label>
-        <textarea name="remarks"
-                  class="form-control"></textarea>
-
-        <br>
-
-        <button type="submit"
-                class="btn btn-success">
-            Save Entry
-        </button>
-
+<button class="btn btn-success">
+    Save Entry
+</button>
     </form>
 
 </div>
@@ -197,42 +185,60 @@
 
 </table>
 </div>
-```
+
+
+<div class="card mt-3">
+
+    <div class="card-header bg-primary text-white">
+        Current Shop Balances
+    </div>
+
+    <div class="card-body p-0">
+
+        <table class="table table-bordered table-striped mb-0">
+
+            <thead class="table-light">
+                <tr>
+                    <th>Shop Name</th>
+                    <th class="text-end">Current Balance</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for shop_name, balance in shop_balances %}
+                <tr>
+
+                    <td>{{ shop_name }}</td>
+
+                    <td class="text-end">
+
+                        {% if balance > 0 %}
+                            <span class="text-danger fw-bold">
+                                ₹ {{ balance }}
+                            </span>
+                        {% elif balance < 0 %}
+                            <span class="text-success fw-bold">
+                                ₹ {{ balance }}
+                            </span>
+                        {% else %}
+                            ₹ 0
+                        {% endif %}
+
+                    </td>
+
+                </tr>
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
 
 </div>
+</div>
 
-<script>
 
-const received =
-document.getElementById("received");
-
-const paid =
-document.getElementById("paid");
-
-const balance =
-document.getElementById("balance");
-
-received.addEventListener(
-    "input",
-    calculateBalance
-);
-
-paid.addEventListener(
-    "input",
-    calculateBalance
-);
-
-function calculateBalance(){
-
-    let r =
-    parseFloat(received.value) || 0;
-
-    let p =
-    parseFloat(paid.value) || 0;
-
-    balance.value = r - p;
-}
-
-</script>
 
 {% endblock %}
