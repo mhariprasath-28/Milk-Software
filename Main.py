@@ -243,11 +243,13 @@ ORDER BY shop_name
 
     if selected_shop:
         cursor.execute("""
-            SELECT COALESCE(SUM(opening_balance),0)
+            SELECT 
+                    COALESCE(SUM(opening_balance),0),
+                    COALESCE(SUM(amount),0)
             FROM payment_entries
             WHERE shop_id=%s
         """, (selected_shop,))
-        payment_total = cursor.fetchone()[0]
+        payment_total ,amount_total= cursor.fetchone()[0]
 
         cursor.execute("""
             SELECT
@@ -258,7 +260,7 @@ ORDER BY shop_name
         """, (selected_shop,))
         entries_total, entries_paid = cursor.fetchone()
 
-        old_balance = payment_total + entries_total - entries_paid
+        old_balance = payment_total + entries_total - entries_paid - amount_total
     # Product List
     cursor.execute("SELECT * FROM products")
     products = cursor.fetchall()
@@ -1368,11 +1370,13 @@ def get_old_balance(shop_id):
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT COALESCE(SUM(opening_balance),0)
+        SELECT
+            COALESCE(SUM(opening_balance),0),
+            COALESCE(SUM(amount),0)
         FROM payment_entries
         WHERE shop_id=%s
     """, (shop_id,))
-    payment_total = cursor.fetchone()[0]
+    payment_total, amount_total = cursor.fetchone()
 
     cursor.execute("""
         SELECT
@@ -1383,7 +1387,7 @@ def get_old_balance(shop_id):
     """, (shop_id,))
     entries_total, entries_paid = cursor.fetchone()
 
-    balance = payment_total + entries_total - entries_paid
+    balance = payment_total + entries_total - entries_paid - amount_total
 
     conn.close()
 
