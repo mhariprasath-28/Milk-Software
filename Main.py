@@ -249,7 +249,7 @@ ORDER BY shop_name
             FROM payment_entries
             WHERE shop_id=%s
         """, (selected_shop,))
-        payment_total ,amount_total= cursor.fetchone()[0]
+        payment_total ,amount_total= cursor.fetchone()
 
         cursor.execute("""
             SELECT
@@ -295,7 +295,7 @@ FROM entries
     # Entry Report
     cursor.execute("""
 SELECT
-    STRING_AGG(DISTINCT e.group_id::text, ',') AS group_ids,
+    e.group_id::text AS group_ids,
     e.entry_date,
     s.shop_name,
     e.shop_id,
@@ -312,6 +312,7 @@ FROM entries e
 JOIN shops s ON e.shop_id = s.id
 JOIN products p ON e.product_id = p.id
 GROUP BY
+    e.group_id,
     e.entry_date,
     s.shop_name,
     e.shop_id
