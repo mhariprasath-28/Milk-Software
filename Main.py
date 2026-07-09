@@ -273,8 +273,9 @@ ORDER BY shop_name
     total_collection = cursor.fetchone()[0]
 
     cursor.execute("""
-    SELECT COALESCE(SUM(paid_amount),0)
-    FROM entries
+    SELECT 
+            COALESCE((SELECT SUM(paid_amount) FROM entries),0)+ 
+    COALESCE((SELECT SUM(amount) FROM payment_entries),0)
     """)
     total_paid = cursor.fetchone()[0]
 
@@ -414,18 +415,25 @@ def home():
         params = [from_date, to_date]
 
     cursor.execute(f"""
-        SELECT COALESCE(SUM(total_amount),0) -COALESCE(SUM(paid_amount),0)
+        SELECT COALESCE(SUM(total_amount),0) 
         FROM entries
         {where_clause}
     """, params)
     total_collection = cursor.fetchone()[0]
-
     cursor.execute(f"""
         SELECT COALESCE(SUM(paid_amount),0)
         FROM entries
         {where_clause}
     """, params)
-    total_paid = cursor.fetchone()[0]
+    entries_paid = cursor.fetchone()[0]
+
+    cursor.execute(f"""
+        SELECT COALESCE(SUM(paid_amount),0)
+        FROM payment_entries
+        {where_clause}
+    """, params)
+    payments_amount = cursor.fetchone()[0]
+    total_paid = entries_paid + payments_amount
 
     cursor.execute(f"""
         SELECT COALESCE(SUM(total_amount),0) - COALESCE(SUM(paid_amount),0)
