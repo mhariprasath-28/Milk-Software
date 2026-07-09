@@ -427,10 +427,10 @@ def home():
     """, params)
     entries_paid = cursor.fetchone()[0]
 
-    cursor.execute(f"""
-        SELECT COALESCE(SUM(paid_amount),0)
+    cursor.execute("""
+        SELECT COALESCE(SUM(amount),0)
         FROM payment_entries
-    """, params)
+    """)
     payments_amount = cursor.fetchone()[0]
     total_paid = entries_paid + payments_amount
 
