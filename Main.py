@@ -1,15 +1,13 @@
 from re import search
 
 
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect,send_file
 from datetime import date
 from database import get_connection
 import pandas as pd
 
 from flask import send_file
-from flask import Flask, render_template, request, redirect, send_file
 from datetime import date
-import pandas as pd
 from reportlab.platypus import *
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -308,32 +306,35 @@ FROM entries
 
 
     # Entry Report
-    cursor.execute(f"""
-SELECT
-    e.group_id::text AS group_ids,
-    e.entry_date,
-    s.shop_name,
-    e.shop_id,
-    STRING_AGG(
-        p.product_name || ' - ' ||
-        e.liter::text || 'L - Rs.' ||
-        e.total_amount::text,
-        '<br>'
-    ) AS products,
-    SUM(e.total_amount) AS total,
-    SUM(e.paid_amount) AS paid,
-    0 AS balance
-FROM entries e
-JOIN shops s ON e.shop_id = s.id
-JOIN products p ON e.product_id = p.id
-WHERE 1=1 {entry_where}
-GROUP BY
-    e.group_id,
-    e.entry_date,
-    s.shop_name,
-    e.shop_id
-ORDER BY e.entry_date ASC
-""")
+    query = f"""
+    SELECT
+        e.group_id::text AS group_ids,
+        e.entry_date,
+        s.shop_name,
+        e.shop_id,
+        STRING_AGG(
+            p.product_name || ' - ' ||
+            e.liter::text || 'L - Rs.' ||
+            e.total_amount::text,
+            '<br>'
+        ) AS products,
+        SUM(e.total_amount) AS total,
+        SUM(e.paid_amount) AS paid,
+        0 AS balance
+    FROM entries e
+    JOIN shops s ON e.shop_id = s.id
+    JOIN products p ON e.product_id = p.id
+    WHERE 1=1 {entry_where}
+    GROUP BY
+        e.group_id,
+        e.entry_date,
+        s.shop_name,
+        e.shop_id
+    ORDER BY e.entry_date ASC
+    """
+
+    cursor.execute(query, entry_params)
+    
     entries = cursor.fetchall()
     # entries are fetched ORDER BY entry_date DESC — sort oldest first to run the balance forward
     entries_sorted = entries
@@ -373,9 +374,6 @@ ORDER BY e.entry_date ASC
 
     entries = new_entries
 
-    today = date.today().strftime("%Y-%m-%d")
-
-    conn.close()
     today = date.today().strftime("%Y-%m-%d")
 
     conn.close()
@@ -840,7 +838,15 @@ def export_excel():
     JOIN products p ON e.product_id = p.id
     """
 
-    df = pd.read_sql_query(query, conn)
+    cursor = conn.cursor()
+
+    cursor.execute(query)
+
+    rows = cursor.fetchall()
+
+    columns = [desc[0] for desc in cursor.description]
+
+    df = pd.DataFrame(rows, columns=columns)
 
     file_name = "Milk_Report.xlsx"
 
@@ -1355,7 +1361,11 @@ def export_payment_excel():
     ORDER BY payment_date DESC
     """
 
-    df = pd.read_sql_query(query, conn)
+    cursor = conn.cursor()
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    columns = [desc[0] for desc in cursor.description]
+    df = pd.DataFrame(rows, columns=columns)
 
     file_name = "Payment_Report.xlsx"
 
