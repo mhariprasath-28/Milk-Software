@@ -1071,7 +1071,7 @@ def payment_entry():
 
         payment_date = request.form["payment_date"]
         shop_id = request.form["shop_id"]
-        opening_balance = request.form["opening_balance"]
+        opening_balance = request.form["opening_balance"] or 0
         amount = request.form["amount"] or 0
         remarks = request.form["remarks"]
 
