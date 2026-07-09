@@ -60,6 +60,11 @@
         </div>
 
         <br>
+        <label>Amount Received</label>
+<input type="number"
+       name="amount"
+       class="form-control">
+       <br>
 
         <label>Remarks</label>
         <textarea name="remarks"
@@ -148,6 +153,7 @@
             <th>Date</th>
             <th>Shop Name</th>
             <th>Opening Balance</th>
+            <th>Amount Received</th>
             <th>Remarks</th>
             <th>Action</th>
         </tr>
@@ -168,7 +174,8 @@
                 </span>
             </td>
 
-            <td>{{ row[4] }}</td>
+            <td class="text-success fw-bold">₹ {{ row[4] }}</td>
+            <td>{{ row[5] }}</td>
 
             <td>
                 <a href="/edit-payment/{{ row[0] }}"
