@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS payment_entries(
     payment_date DATE,
     shop_id INTEGER REFERENCES shops(id),
     opening_balance DOUBLE PRECISION,
+    amount DOUBLE PRECISION DEFAULT 0,
     remarks TEXT
 )
 """)
@@ -546,7 +547,7 @@ def edit_entry(group_ids):
 
     rows = cursor.fetchall()
 
-    shop_id = rows[0][3] if rows else None
+    shop_id = rows[0][2] if rows else None
     old_balance = 0
 
     if shop_id:
@@ -1065,6 +1066,7 @@ def payment_entry():
         payment_date = request.form["payment_date"]
         shop_id = request.form["shop_id"]
         opening_balance = request.form["opening_balance"]
+        amount = request.form["amount"] or 0
         remarks = request.form["remarks"]
 
         cursor.execute("""
@@ -1073,13 +1075,15 @@ def payment_entry():
                 payment_date,
                 shop_id,
                 opening_balance,
+                 amount,
                 remarks
             )
-            VALUES (%s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s)
         """, (
             payment_date,
             shop_id,
             opening_balance,
+            amount,
             remarks
         ))
 
@@ -1098,6 +1102,7 @@ def payment_entry():
             p.payment_date,
             s.shop_name,
             p.opening_balance,
+            p.amount,
             p.remarks
         FROM payment_entries p
         JOIN shops s ON p.shop_id = s.id
@@ -1129,11 +1134,13 @@ def payment_entry():
     shop_balances = []
     for sid, sname in shops:
         cursor.execute("""
-            SELECT COALESCE(SUM(opening_balance),0)
+            SELECT 
+                       COALESCE(SUM(opening_balance),0),
+                       COALESCE(SUM(amount),0)
             FROM payment_entries
             WHERE shop_id=%s
         """, (sid,))
-        payment_total = cursor.fetchone()[0]
+        payment_total, amount_total = cursor.fetchone()
 
         cursor.execute("""
             SELECT
@@ -1144,7 +1151,7 @@ def payment_entry():
         """, (sid,))
         entries_total, entries_paid = cursor.fetchone()
 
-        current_balance = payment_total + entries_total - entries_paid
+        current_balance = (payment_total + entries_total - entries_paid - amount_total)
         shop_balances.append((sname, current_balance))
     # --- end live balance block ---
 
@@ -1172,7 +1179,8 @@ def edit_payment(id):
 
         payment_date = request.form["payment_date"]
         shop_id = request.form["shop_id"]
-        opening_balance = request.form["opening_balance"]
+        opening_balance = request.form["opening_balance"] or 0
+        amount = request.form["amount"] or 0
         remarks = request.form["remarks"]
 
         cursor.execute("""
@@ -1180,12 +1188,14 @@ def edit_payment(id):
             SET payment_date=%s,
                 shop_id=%s,
                 opening_balance=%s,
+                amount=%s,
                 remarks=%s
             WHERE id=%s
         """, (
             payment_date,
             shop_id,
             opening_balance,
+            amount,
             remarks,
             id
         ))
@@ -1242,6 +1252,7 @@ def export_payment_excel():
         payment_date,
         shop_id,
         opening_balance,
+        amount,
         remarks
     FROM payment_entries
     ORDER BY payment_date DESC
@@ -1273,6 +1284,7 @@ def export_payment_pdf():
             p.payment_date,
             s.shop_name,
             p.opening_balance,
+            p.amount,
             p.remarks
         FROM payment_entries p
         JOIN shops s ON p.shop_id = s.id
@@ -1305,6 +1317,7 @@ def export_payment_pdf():
             "Payment Date",
             "Shop Name",
             "Opening Balance",
+            "Amount",
             "Remarks"
         ]
     ]
@@ -1314,7 +1327,8 @@ def export_payment_pdf():
             str(row[0]),
             str(row[1]),
             f"₹ {row[2]}",
-            str(row[3])
+            f"₹ {row[3]}",
+            str(row[4])
         ])
 
     table = Table(data)
