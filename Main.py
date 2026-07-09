@@ -281,7 +281,7 @@ ORDER BY shop_name
     cursor.execute("""
 SELECT
 (
-    SELECT COALESCE(SUM(opening_balance),0)
+    SELECT COALESCE(SUM(opening_balance),0)-COALESCE(SUM(amount),0)
     FROM payment_entries
 )
 +
@@ -414,7 +414,7 @@ def home():
         params = [from_date, to_date]
 
     cursor.execute(f"""
-        SELECT COALESCE(SUM(total_amount),0)
+        SELECT COALESCE(SUM(total_amount),0) -COALESCE(SUM(paid_amount),0)
         FROM entries
         {where_clause}
     """, params)
@@ -903,18 +903,21 @@ def outstanding_report():
     for sid, sname, total, paid in raw_reports:
 
         cursor.execute("""
-            SELECT COALESCE(SUM(opening_balance),0)
+            SELECT 
+                       COALESCE(SUM(opening_balance),0),
+                       COALESCE(SUM(amount),0)
+                       
             FROM payment_entries
             WHERE shop_id=%s
         """, (sid,))
-        payment_total = cursor.fetchone()[0]
+        payment_total ,amount_total= cursor.fetchone()
 
-        balance = payment_total + (total or 0) - (paid or 0)
+        balance = payment_total + (total or 0) - (paid or 0)- amount_total
 
         reports.append((sname, total, paid, balance))
 
         if shop_id and int(shop_id) == sid:
-            old_balance = payment_total
+            old_balance = payment_total-amount_total + (total or 0) - (paid or 0)
 
     cursor.execute("SELECT * FROM shops")
     shops = cursor.fetchall()
