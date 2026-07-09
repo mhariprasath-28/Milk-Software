@@ -11,13 +11,13 @@
 
     <div class="row mb-3">
 
-        <!-- <div class="col-md-4">
+        <div class="col-md-4">
             <input
                 type="text"
                 id="search"
                 class="form-control"
                 placeholder="Search Shop Name">
-        </div> -->
+        </div>
 
     </div>
     <form method="GET">
@@ -29,50 +29,48 @@
     <label>From Date</label>
     <input type="date"
            name="from_date"
-           class="form-control">
+           class="form-control"
+           value="{{ from_date }}">
 </div>
 
 <div class="col-md-2">
     <label>To Date</label>
     <input type="date"
            name="to_date"
-           class="form-control">
+           class="form-control"
+           value="{{ to_date }}">
 </div>
 
 <div class="col-md-3">
     <label>Shop</label>
-    <select name="shop_id"
-            class="form-control">
+    <select name="shop_id" class="form-control">
 
-        <option value="">
-            All Shops
-        </option>
+    <option value="">All Shops</option>
 
-        {% for shop in shops %}
-        <option value="{{ shop[0] }}">
-            {{ shop[1] }}
-        </option>
-        {% endfor %}
+    {% for shop in shops %}
+    <option value="{{ shop[0] }}"
+        {% if request.args.get('shop_id') == shop[0]|string %}selected{% endif %}>
+        {{ shop[1] }}
+    </option>
+    {% endfor %}
 
-    </select>
+</select>
 </div>
 
 <div class="col-md-3">
     <label>Product</label>
-    <select name="product_id"
-            class="form-control">
+    <select name="product_id" class="form-control">
 
-        <option value="">
-            All Products
-        </option>
+    <option value="">All Products</option>
 
-        {% for product in products %}
-        <option value="{{ product[0] }}">
-            {{ product[1] }}
-        </option>
-        {% endfor %}
+    {% for product in products %}
+    <option value="{{ product[0] }}"
+        {% if request.args.get('product_id') == product[0]|string %}selected{% endif %}>
+        {{ product[1] }}
+    </option>
+    {% endfor %}
 
-    </select>
+</select>
 </div>
 
 <div class="col-md-2">
