@@ -85,7 +85,6 @@ ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION DEFAULT 0;
 conn.commit()
 conn.close()
 conn = get_connection()
-
 conn.commit()
 cursor = conn.cursor()
 
@@ -1212,7 +1211,9 @@ def edit_payment(id):
         return redirect("/payment-entry")
 
     cursor.execute(
-        "SELECT * FROM payment_entries WHERE id=%s",
+        "SELECT id, payment_date, shop_id, opening_balance, amount, remarks"
+        " FROM payment_entries"
+        " WHERE id=%s",
         (id,)
     )
 
