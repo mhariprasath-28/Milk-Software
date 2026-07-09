@@ -292,9 +292,23 @@ COALESCE(SUM(paid_amount),0)
 FROM entries
 """)
     total_balance = cursor.fetchone()[0]
+    entry_from_date = request.args.get("entry_from_date")
+    entry_to_date = request.args.get("entry_to_date")
+    if not entry_from_date and not entry_to_date:
+        today_str = date.today().strftime("%Y-%m-%d")
+        entry_from_date = today_str
+        entry_to_date = today_str
+
+    entry_where = ""
+    entry_params = []
+
+    if entry_from_date and entry_to_date:
+        entry_where = " AND e.entry_date BETWEEN %s AND %s "
+        entry_params = [entry_from_date, entry_to_date]
+
 
     # Entry Report
-    cursor.execute("""
+    cursor.execute(f"""
 SELECT
     e.group_id::text AS group_ids,
     e.entry_date,
@@ -312,6 +326,7 @@ SELECT
 FROM entries e
 JOIN shops s ON e.shop_id = s.id
 JOIN products p ON e.product_id = p.id
+WHERE 1=1 {entry_where}
 GROUP BY
     e.group_id,
     e.entry_date,
@@ -375,7 +390,9 @@ ORDER BY e.entry_date ASC
     total_balance=total_balance,
     today=today,
     old_balance=old_balance,
-    selected_shop=selected_shop
+    selected_shop=selected_shop,
+    from_date=entry_from_date,
+    to_date=entry_to_date
 
 )
 @app.route("/delete-entry/<group_ids>")
@@ -403,6 +420,10 @@ def home():
 
     from_date = request.args.get("from_date")
     to_date = request.args.get("to_date")
+    if not from_date and not to_date:
+        today_str = date.today().strftime("%Y-%m-%d")
+        from_date = today_str
+        to_date = today_str
 
     where_clause = ""
     params = []
@@ -705,8 +726,21 @@ def shop_report():
 
     conn = get_connection()
     cursor = conn.cursor()
+    from_date = request.args.get("from_date")
+    to_date = request.args.get("to_date")
+    if not from_date and not to_date:
+        today_str = date.today().strftime("%Y-%m-%d")
+        from_date = today_str
+        to_date = today_str
 
-    cursor.execute("""
+    where_clause = ""
+    params = []
+
+    if from_date and to_date:
+        where_clause = " AND e.entry_date BETWEEN %s AND %s "
+        params = [from_date, to_date]
+
+    cursor.execute(f"""
 SELECT
     s.shop_name,
     COALESCE(SUM(e.total_amount),0) AS total_collection,
@@ -723,24 +757,40 @@ SELECT
 FROM shops s
 LEFT JOIN entries e
     ON s.id = e.shop_id
+                   {where_clause}
 GROUP BY s.id, s.shop_name
 ORDER BY s.shop_name
-""")
+""", params)
     reports = cursor.fetchall()
 
     conn.close()
 
     return render_template(
         "shop_report.html",
-        reports=reports
+        reports=reports,
+        from_date=from_date,
+        to_date=to_date
     )
 @app.route("/balance-report")
 def balance_report():
 
     conn = get_connection()
     cursor = conn.cursor()
+    from_date = request.args.get("from_date")
+    to_date = request.args.get("to_date")
+    if not from_date and not to_date:
+        today_str = date.today().strftime("%Y-%m-%d")
+        from_date = today_str
+        to_date = today_str
 
-    cursor.execute("""
+    where_clause = ""
+    params = []
+
+    if from_date and to_date:
+        where_clause = " AND e.entry_date BETWEEN %s AND %s "
+        params = [from_date, to_date]
+
+    cursor.execute(f"""
     SELECT
         s.shop_name,
        COALESCE((
@@ -755,10 +805,11 @@ COALESCE(SUM(e.paid_amount),0) AS balance
     FROM shops s
     LEFT JOIN entries e
         ON s.id = e.shop_id
+                   {where_clause}
     GROUP BY s.shop_name
-    HAVING balance > 0
+    HAVING SUM(e.total_amount) IS NOT NULL OR SUM(e.paid_amount) IS NOT NULL
     ORDER BY balance DESC
-    """)
+    """, params)
 
     reports = cursor.fetchall()
 
@@ -766,7 +817,9 @@ COALESCE(SUM(e.paid_amount),0) AS balance
 
     return render_template(
         "balance_report.html",
-        reports=reports
+        reports=reports,
+        from_date=from_date,
+        to_date=to_date
     )
 @app.route("/export-excel")
 def export_excel():
@@ -807,8 +860,21 @@ def product_report():
 
     conn = get_connection()
     cursor = conn.cursor()
+    from_date = request.args.get("from_date")
+    to_date = request.args.get("to_date")
+    if not from_date and not to_date:
+        today_str = date.today().strftime("%Y-%m-%d")
+        from_date = today_str
+        to_date = today_str
 
-    cursor.execute("""
+    where_clause = ""
+    params = []
+
+    if from_date and to_date:
+        where_clause = " AND e.entry_date BETWEEN %s AND %s "
+        params = [from_date, to_date]
+
+    cursor.execute(f"""
     SELECT
         p.product_name,
         COALESCE(SUM(e.liter),0),
@@ -816,9 +882,10 @@ def product_report():
     FROM products p
     LEFT JOIN entries e
         ON p.id = e.product_id
+                   {where_clause}
     GROUP BY p.product_name
     ORDER BY p.product_name
-    """)
+    """, params)
 
     reports = cursor.fetchall()
 
@@ -826,7 +893,9 @@ def product_report():
 
     return render_template(
         "product_report.html",
-        reports=reports
+        reports=reports,
+        from_date=from_date,
+        to_date=to_date
     )
 @app.route("/daily-summary")
 def daily_summary():
@@ -863,6 +932,10 @@ def outstanding_report():
     to_date = request.args.get("to_date")
     shop_id = request.args.get("shop_id")
     product_id = request.args.get("product_id")
+    if not from_date and not to_date:
+        today_str = date.today().strftime("%Y-%m-%d")
+        from_date = today_str
+        to_date = today_str
 
     query = """
     SELECT
@@ -1113,6 +1186,10 @@ def payment_entry():
     from_date = request.args.get("from_date")
     to_date = request.args.get("to_date")
     search = request.args.get("search")
+    if not from_date and not to_date and not search:
+        today_str = date.today().strftime("%Y-%m-%d")
+        from_date = today_str
+        to_date = today_str
 
     query = """
         SELECT
