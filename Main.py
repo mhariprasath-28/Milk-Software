@@ -581,7 +581,7 @@ def edit_entry(group_ids):
 
     rows = cursor.fetchall()
 
-    shop_id = rows[0][2] if rows else None
+    shop_id = rows[0][3] if rows else None
     old_balance = 0
 
     if shop_id:
