@@ -1018,7 +1018,11 @@ def outstanding_report():
         reports=reports,
         shops=shops,
         products=products,
-        old_balance=old_balance
+        old_balance=old_balance,
+        from_date=from_date,
+        to_date=to_date,
+        shop_id=shop_id,
+        product_id=product_id
     )
 @app.route("/export-pdf")
 def export_pdf():
