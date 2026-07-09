@@ -94,13 +94,24 @@
             </div>
 
             <div class="col-md-3">
-                <label>Search Party</label>
-                <input type="text"
-                       name="search"
-                       class="form-control"
-                       value="{{ search }}">
-            </div>
+    <label>Shop Name</label>
 
+    <select name="shop_id" class="form-control">
+
+        <option value="">All Shops</option>
+
+        {% for shop in shops %}
+        <option value="{{ shop[0] }}"
+            {% if request.args.get('shop_id') == shop[0]|string %}
+                selected
+            {% endif %}>
+            {{ shop[1] }}
+        </option>
+        {% endfor %}
+
+    </select>
+
+</div>
             <div class="col-md-3">
 
                 <br>
@@ -239,37 +250,6 @@
 </div>
 </div>
 
-<script>
-
-const received =
-document.getElementById("received");
-
-const paid =
-document.getElementById("paid");
-
-const balance =
-document.getElementById("balance");
-
-received.addEventListener(
-    "input",
-    calculateBalance
-);
-
-paid.addEventListener(
-    "input",
-    calculateBalance
-);
-
-function calculateBalance(){
-
-    let r =
-    parseFloat(received.value) || 0;
-
-    let p =
-    parseFloat(paid.value) || 0;
-
-    balance.value = r - p;
-}
 
 </script>
 
