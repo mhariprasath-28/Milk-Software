@@ -301,10 +301,11 @@ COALESCE(
     total_balance = cursor.fetchone()[0]
 
 
-    # Entry Report
+    # Entry Report — consolidated per shop + date (merges multiple submissions
+    # from the same shop on the same day into a single row)
     query = f"""
     SELECT
-        e.group_id::text AS group_ids,
+        STRING_AGG(DISTINCT e.group_id::text, ',') AS group_ids,
         e.entry_date,
         s.shop_name,
         e.shop_id,
@@ -313,6 +314,7 @@ COALESCE(
             e.liter::text || 'L - Rs.' ||
             e.total_amount::text,
             '<br>'
+            ORDER BY e.id
         ) AS products,
         SUM(e.total_amount) AS total,
         0 AS balance
@@ -321,7 +323,6 @@ COALESCE(
     JOIN products p ON e.product_id = p.id
     WHERE 1=1 {entry_where}
     GROUP BY
-        e.group_id,
         e.entry_date,
         s.shop_name,
         e.shop_id
