@@ -6,7 +6,6 @@
 
 <div class="card p-3">
 
-```
 <form method="POST">
 
     <label>Date</label>
@@ -139,7 +138,6 @@
     </a>
 
 </form>
-```
 
 </div>
 
@@ -172,57 +170,78 @@ function calculateBalance() {
 
         });
 
+    let paidEl = document.getElementById("paid");
+
     let paid =
-        parseFloat(
-            document.getElementById("paid").value
-        ) || 0;
+        paidEl ? (parseFloat(paidEl.value) || 0) : 0;
 
     let oldBalance =
         parseFloat(
             document.getElementById("old_balance").value
         ) || 0;
 
-    document.getElementById("balance").value =
-        oldBalance + grandTotal - paid;
+    let balanceEl = document.getElementById("balance");
+
+    if (balanceEl) {
+        balanceEl.value =
+            oldBalance + grandTotal - paid;
+    }
+}
+
+function attachRowEvents(row) {
+
+    let product = row.querySelector(".product");
+    let rate = row.querySelector(".rate");
+    let liter = row.querySelector(".liter");
+    let removeBtn = row.querySelector(".remove-row");
+
+    product.addEventListener("change", function(){
+
+        let selected =
+            product.options[product.selectedIndex];
+
+        rate.value =
+            selected.getAttribute("data-rate") || 0;
+
+        calculateRow(row);
+
+    });
+
+    rate.addEventListener("input", function(){
+
+        calculateRow(row);
+
+    });
+
+    liter.addEventListener("input", function(){
+
+        calculateRow(row);
+
+    });
+
+    removeBtn.addEventListener("click", function(){
+
+        // Keep at least one product row on the form
+        if (document.querySelectorAll(".product-row").length > 1) {
+            row.remove();
+            calculateBalance();
+        } else {
+            alert("At least one product row is required.");
+        }
+
+    });
+
 }
 
 document.querySelectorAll(".product-row")
     .forEach(function(row){
-
-        let product = row.querySelector(".product");
-        let rate = row.querySelector(".rate");
-        let liter = row.querySelector(".liter");
-
-        product.addEventListener("change", function(){
-
-            let selected =
-                product.options[product.selectedIndex];
-
-            rate.value =
-                selected.getAttribute("data-rate") || 0;
-
-            calculateRow(row);
-
-        });
-
-        rate.addEventListener("input", function(){
-
-            calculateRow(row);
-
-        });
-
-        liter.addEventListener("input", function(){
-
-            calculateRow(row);
-
-        });
-
+        attachRowEvents(row);
     });
-document.getElementById("paid")
-    .addEventListener(
-        "input",
-        calculateBalance
-    );  
+
+let paidInput = document.getElementById("paid");
+if (paidInput) {
+    paidInput.addEventListener("input", calculateBalance);
+}
 
 window.onload = function () {
 
