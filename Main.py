@@ -750,13 +750,19 @@ def shop_report():
     cursor.execute(f"""
 SELECT
     s.shop_name,
+    COALESCE(SUM(e.total_amount),0) AS total_collection,
+    COALESCE((
+SELECT SUM(amount)
+FROM payment_entries p
+WHERE p.shop_id=s.id
+),0) AS total_paid,
     COALESCE((
 SELECT SUM(opening_balance)-SUM(amount)
 FROM payment_entries p
 WHERE p.shop_id=s.id
 ),0)
 +
-    COALESCE(SUM(e.total_amount),0)
+    COALESCE(SUM(e.total_amount),0) AS balance
 FROM shops s
 LEFT JOIN entries e
     ON s.id = e.shop_id
@@ -796,6 +802,11 @@ def balance_report():
     cursor.execute(f"""
     SELECT
         s.shop_name,
+        COALESCE((
+    SELECT SUM(p.amount)
+    FROM payment_entries p
+    WHERE p.shop_id=s.id
+),0) AS total_paid,
        COALESCE((
     SELECT SUM(p.opening_balance)-sum(p.amount)
     FROM payment_entries p
@@ -809,8 +820,7 @@ COALESCE(SUM(e.total_amount),0)
     LEFT JOIN entries e
         ON s.id = e.shop_id
                    {where_clause}
-    GROUP BY s.shop_name
-    HAVING SUM(e.total_amount) IS NOT NULL
+    GROUP BY s.id, s.shop_name
     ORDER BY balance DESC
     """, params)
 
@@ -913,12 +923,33 @@ def daily_summary():
     cursor = conn.cursor()
 
     cursor.execute("""
+    WITH days AS (
+        SELECT entry_date AS d FROM entries
+        UNION
+        SELECT payment_date AS d FROM payment_entries
+    ),
+    collection AS (
+        SELECT entry_date AS d, SUM(total_amount) AS amt
+        FROM entries
+        GROUP BY entry_date
+    ),
+    payments AS (
+        SELECT payment_date AS d,
+               SUM(opening_balance) AS opening,
+               SUM(amount) AS paid
+        FROM payment_entries
+        GROUP BY payment_date
+    )
     SELECT
-        entry_date,
-        SUM(total_amount)
-    FROM entries
-    GROUP BY entry_date
-    ORDER BY entry_date DESC
+        d.d AS entry_date,
+        COALESCE(c.amt,0) AS collection,
+        COALESCE(p.paid,0) AS paid,
+        SUM(COALESCE(p.opening,0) + COALESCE(c.amt,0) - COALESCE(p.paid,0))
+            OVER (ORDER BY d.d) AS balance
+    FROM days d
+    LEFT JOIN collection c ON c.d = d.d
+    LEFT JOIN payments p ON p.d = d.d
+    ORDER BY d.d DESC
     """)
 
     reports = cursor.fetchall()
@@ -952,28 +983,33 @@ def outstanding_report():
     FROM shops s
     LEFT JOIN entries e
         ON s.id = e.shop_id
-    LEFT JOIN products p
-        ON e.product_id = p.id
-    WHERE 1=1
     """
 
+    join_conditions = ""
     params = []
 
     if from_date:
-        query += " AND e.entry_date >= %s "
+        join_conditions += " AND e.entry_date >= %s "
         params.append(from_date)
 
     if to_date:
-        query += " AND e.entry_date <= %s "
+        join_conditions += " AND e.entry_date <= %s "
         params.append(to_date)
+
+    if product_id:
+        join_conditions += " AND e.product_id = %s "
+        params.append(product_id)
+
+    query = query.replace(
+        "ON s.id = e.shop_id",
+        "ON s.id = e.shop_id " + join_conditions
+    )
+
+    query += " WHERE 1=1 "
 
     if shop_id:
         query += " AND s.id = %s "
         params.append(shop_id)
-
-    if product_id:
-        query += " AND p.id = %s "
-        params.append(product_id)
 
     query += """
     GROUP BY s.id, s.shop_name
@@ -1000,7 +1036,13 @@ def outstanding_report():
 
         balance = payment_total + total - amount_total
 
-        reports.append((sname, total, balance))
+        # Show every shop that has a non-zero balance, even if it had
+        # no entries in the selected date range. Shops with zero total
+        # in this period AND zero balance are skipped to keep the report clean.
+        if total == 0 and balance == 0:
+            continue
+
+        reports.append((sname, total, amount_total, balance))
 
         if shop_id and int(shop_id) == sid:
             old_balance = payment_total-amount_total + (total or 0)
