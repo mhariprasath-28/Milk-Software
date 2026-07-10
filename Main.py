@@ -733,20 +733,11 @@ def shop_report():
 
     conn = get_connection()
     cursor = conn.cursor()
-    from_date = request.args.get("from_date")
-    to_date = request.args.get("to_date")
-    if not from_date and not to_date:
-        today_str = date.today().strftime("%Y-%m-%d")
-        from_date = today_str
-        to_date = today_str
 
     where_clause = ""
     params = []
 
-    if from_date and to_date:
-        where_clause = " AND e.entry_date BETWEEN %s AND %s "
-        params = [from_date, to_date]
-
+    
     cursor.execute(f"""
 SELECT
     s.shop_name,
@@ -776,9 +767,7 @@ ORDER BY s.shop_name
 
     return render_template(
         "shop_report.html",
-        reports=reports,
-        from_date=from_date,
-        to_date=to_date
+        reports=reports
     )
 @app.route("/balance-report")
 def balance_report():
@@ -912,9 +901,7 @@ def product_report():
 
     return render_template(
         "product_report.html",
-        reports=reports,
-        from_date=from_date,
-        to_date=to_date
+        reports=reports
     )
 @app.route("/daily-summary")
 def daily_summary():
@@ -966,14 +953,9 @@ def outstanding_report():
     conn = get_connection()
     cursor = conn.cursor()
 
-    from_date = request.args.get("from_date")
-    to_date = request.args.get("to_date")
     shop_id = request.args.get("shop_id")
     product_id = request.args.get("product_id")
-    if not from_date and not to_date:
-        today_str = date.today().strftime("%Y-%m-%d")
-        from_date = today_str
-        to_date = today_str
+    
 
     query = """
     SELECT
@@ -987,14 +969,6 @@ def outstanding_report():
 
     join_conditions = ""
     params = []
-
-    if from_date:
-        join_conditions += " AND e.entry_date >= %s "
-        params.append(from_date)
-
-    if to_date:
-        join_conditions += " AND e.entry_date <= %s "
-        params.append(to_date)
 
     if product_id:
         join_conditions += " AND e.product_id = %s "
@@ -1061,8 +1035,6 @@ def outstanding_report():
         shops=shops,
         products=products,
         old_balance=old_balance,
-        from_date=from_date,
-        to_date=to_date,
         shop_id=shop_id,
         product_id=product_id
     )
