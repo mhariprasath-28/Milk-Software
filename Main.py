@@ -254,30 +254,7 @@ ORDER BY shop_name
     cursor.execute("SELECT * FROM products")
     products = cursor.fetchall()
 
-    # Dashboard Cards
-    cursor.execute("""
-    SELECT COALESCE(SUM(total_amount),0)
-    FROM entries
-    """)
-    total_collection = cursor.fetchone()[0]
-    
-    cursor.execute("""
-    SELECT COALESCE(SUM(amount),0) 
-                   FROM payment_entries
-    """)
-    total_paid = cursor.fetchone()[0]
-
-    cursor.execute("""
-SELECT
-(
-    SELECT COALESCE(SUM(opening_balance),0)-COALESCE(SUM(amount),0)
-    FROM payment_entries
-)
-+
-COALESCE(SUM(total_amount),0)
-FROM entries
-""")
-    total_balance = cursor.fetchone()[0]
+    # Date range (used by the summary cards AND the entries list below)
     entry_from_date = request.args.get("entry_from_date")
     entry_to_date = request.args.get("entry_to_date")
     if not entry_from_date and not entry_to_date:
@@ -291,6 +268,37 @@ FROM entries
     if entry_from_date and entry_to_date:
         entry_where = " AND e.entry_date BETWEEN %s AND %s "
         entry_params = [entry_from_date, entry_to_date]
+
+    # Dashboard Cards (now respect the selected date range)
+    cursor.execute("""
+    SELECT COALESCE(SUM(total_amount),0)
+    FROM entries
+    WHERE 1=1 """ + (" AND entry_date BETWEEN %s AND %s " if entry_from_date and entry_to_date else ""),
+    [entry_from_date, entry_to_date] if entry_from_date and entry_to_date else [])
+    total_collection = cursor.fetchone()[0]
+
+    cursor.execute("""
+    SELECT COALESCE(SUM(amount),0)
+    FROM payment_entries
+    WHERE 1=1 """ + (" AND payment_date BETWEEN %s AND %s " if entry_from_date and entry_to_date else ""),
+    [entry_from_date, entry_to_date] if entry_from_date and entry_to_date else [])
+    total_paid = cursor.fetchone()[0]
+
+    cursor.execute("""
+SELECT
+(
+    SELECT COALESCE(SUM(opening_balance),0)-COALESCE(SUM(amount),0)
+    FROM payment_entries
+    WHERE 1=1 """ + (" AND payment_date <= %s " if entry_to_date else "") + """
+)
++
+COALESCE(
+    (SELECT SUM(total_amount) FROM entries
+     WHERE 1=1 """ + (" AND entry_date <= %s " if entry_to_date else "") + """),
+0)
+""",
+    ([entry_to_date] if entry_to_date else []) + ([entry_to_date] if entry_to_date else []))
+    total_balance = cursor.fetchone()[0]
 
 
     # Entry Report
@@ -351,9 +359,9 @@ FROM entries
 
         old_bal = running_balance.get(shop_id, 0)
         running_balance[shop_id] = old_bal + total
-        temp = list(row)
-        temp[7] = running_balance[shop_id]
-        temp.append(old_bal)   # index 8 = old balance before this entry
+        temp = list(row)                       # indices 0-6 (group_ids, entry_date, shop_name, shop_id, products, total, balance-placeholder)
+        temp.append(running_balance[shop_id])  # index 7 = running balance after this entry
+        temp.append(old_bal)                   # index 8 = old balance before this entry (this is what entry.html displays)
 
         new_entries.append(temp)
 
@@ -1178,7 +1186,8 @@ def payment_entry():
     from_date = request.args.get("from_date")
     to_date = request.args.get("to_date")
     search = request.args.get("search")
-    if not from_date and not to_date and not search:
+    filter_shop_id = request.args.get("shop_id")
+    if not from_date and not to_date and not search and not filter_shop_id:
         today_str = date.today().strftime("%Y-%m-%d")
         from_date = today_str
         to_date = today_str
@@ -1204,6 +1213,10 @@ def payment_entry():
     if to_date:
         query += " AND p.payment_date <= %s "
         params.append(to_date)
+
+    if filter_shop_id:
+        query += " AND s.id = %s "
+        params.append(filter_shop_id)
 
     if search:
         query += " AND s.shop_name LIKE %s "
